@@ -1,0 +1,16 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Force LF for shell scripts
+*.sh text eol=lf
+
+# Force LF for all JS/TS/JSON files
+*.js text eol=lf
+*.ts text eol=lf
+*.json text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary

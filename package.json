@@ -1,0 +1,21 @@
+{
+  "name": "linkay-ventures",
+  "version": "1.0.0",
+  "description": "Linkay Ventures - Microservices Platform",
+  "private": true,
+  "workspaces": [
+    "services/*"
+  ],
+  "scripts": {
+    "start": "docker-compose up",
+    "build": "docker-compose build",
+    "down": "docker-compose down",
+    "test": "jest --projects services/*"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
