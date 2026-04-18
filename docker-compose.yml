@@ -1,8 +1,5 @@
-version: '3.9'
-
 services:
 
-  # ─── Infrastructure ───────────────────────────────────────────────────────
   mysql:
     image: mysql:8.0
     container_name: lv-mysql
@@ -21,37 +18,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  # ─── Services ─────────────────────────────────────────────────────────────
-  api-gateway:
-    build: ./services/api-gateway
-    container_name: lv-api-gateway
-    ports:
-      - "3000:3000"
-    env_file: ./services/api-gateway/.env.example
-    networks:
-      - linkay-network
-    restart: unless-stopped
-
-  account-services:
-    build: ./services/account-services
-    container_name: lv-account-services
-    ports:
-      - "3001:3000"
-    env_file: ./services/account-services/.env.example
-    networks:
-      - linkay-network
-    restart: unless-stopped
-
-  admin-services:
-    build: ./services/admin-services
-    container_name: lv-admin-services
-    ports:
-      - "3002:3000"
-    env_file: ./services/admin-services/.env.example
-    networks:
-      - linkay-network
-    restart: unless-stopped
 
   auth-services:
     build: ./services/auth-services
@@ -74,126 +40,6 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
-    networks:
-      - linkay-network
-    restart: unless-stopped
-
-  ekyc-services:
-    build: ./services/ekyc-services
-    container_name: lv-ekyc-services
-    ports:
-      - "3004:3000"
-    env_file: ./services/ekyc-services/.env.example
-    networks:
-      - linkay-network
-    restart: unless-stopped
-
-  file-service:
-    build: ./services/file-service
-    container_name: lv-file-service
-    ports:
-      - "3005:3000"
-    env_file: ./services/file-service/.env.example
-    networks:
-      - linkay-network
-    restart: unless-stopped
-
-  log-services:
-    build: ./services/log-services
-    container_name: lv-log-services
-    ports:
-      - "3006:3000"
-    env_file: ./services/log-services/.env.example
-    networks:
-      - linkay-network
-    restart: unless-stopped
-
-  notification-services:
-    build: ./services/notification-services
-    container_name: lv-notification-services
-    ports:
-      - "3007:3000"
-    env_file: ./services/notification-services/.env.example
-    networks:
-      - linkay-network
-    restart: unless-stopped
-
-  payment-services:
-    build: ./services/payment-services
-    container_name: lv-payment-services
-    ports:
-      - "3008:3000"
-    env_file: ./services/payment-services/.env.example
-    networks:
-      - linkay-network
-    restart: unless-stopped
-
-  referral-services:
-    build: ./services/referral-services
-    container_name: lv-referral-services
-    ports:
-      - "3009:3000"
-    env_file: ./services/referral-services/.env.example
-    networks:
-      - linkay-network
-    restart: unless-stopped
-
-  risk-services:
-    build: ./services/risk-services
-    container_name: lv-risk-services
-    ports:
-      - "3010:3000"
-    env_file: ./services/risk-services/.env.example
-    networks:
-      - linkay-network
-    restart: unless-stopped
-
-  socket-services:
-    build: ./services/socket-services
-    container_name: lv-socket-services
-    ports:
-      - "3011:3000"
-    env_file: ./services/socket-services/.env.example
-    networks:
-      - linkay-network
-    restart: unless-stopped
-
-  subscription-services:
-    build: ./services/subscription-services
-    container_name: lv-subscription-services
-    ports:
-      - "3012:3000"
-    env_file: ./services/subscription-services/.env.example
-    networks:
-      - linkay-network
-    restart: unless-stopped
-
-  support-services:
-    build: ./services/support-services
-    container_name: lv-support-services
-    ports:
-      - "3013:3000"
-    env_file: ./services/support-services/.env.example
-    networks:
-      - linkay-network
-    restart: unless-stopped
-
-  user-services:
-    build: ./services/user-services
-    container_name: lv-user-services
-    ports:
-      - "3014:3000"
-    env_file: ./services/user-services/.env.example
-    networks:
-      - linkay-network
-    restart: unless-stopped
-
-  wallet-services:
-    build: ./services/wallet-services
-    container_name: lv-wallet-services
-    ports:
-      - "3015:3000"
-    env_file: ./services/wallet-services/.env.example
     networks:
       - linkay-network
     restart: unless-stopped
