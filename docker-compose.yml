@@ -1,3 +1,5 @@
+version: "3.8"
+
 services:
 
   mysql:
@@ -44,9 +46,28 @@ services:
       - linkay-network
     restart: unless-stopped
 
+  ekyc-service:
+    container_name: ekyc-service
+    build:
+      context: ./services/ekyc-services   # ✅ corrected path
+      dockerfile: Dockerfile
+    env_file:
+      - ./services/ekyc-services/.env     # ✅ corrected path
+    volumes:
+      - ekyc_logs:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - linkay-network   # ✅ use same network
+    ports:
+      - "4004:4004"
+    restart: unless-stopped
+
 networks:
   linkay-network:
     driver: bridge
 
 volumes:
   mysql_data:
+  ekyc_logs:

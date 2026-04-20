@@ -16,6 +16,6 @@ RUN mkdir -p logs && chown -R app:app /app
 
 USER app
 
-EXPOSE 4000
+EXPOSE 4001
 
 CMD ["dumb-init", "node", "index.js"]

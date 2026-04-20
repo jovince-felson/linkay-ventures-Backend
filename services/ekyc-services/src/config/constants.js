@@ -1,0 +1,7 @@
+export const SUMSUB_LEVELS = {
+    ID_AND_LIVENESS: process.env.SUMSUB_LEVEL_ID_AND_LIVENESS,
+    ID_ONLY: process.env.SUMSUB_LEVEL_ID_ONLY,
+    IDV_AND_PHONE: process.env.SUMSUB_LEVEL_IDV_PHONE,
+};
+
+export const ALLOWED_SUMSUB_LEVELS = Object.values(SUMSUB_LEVELS);
