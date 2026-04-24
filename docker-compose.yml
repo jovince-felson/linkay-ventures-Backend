@@ -21,6 +21,37 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7
+    container_name: lv-redis
+    # ports:
+    #   - "6379:6379"
+    networks:
+      - linkay-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: lv-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    networks:
+      - linkay-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: lv-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - linkay-network
+
   auth-services:
     build: ./services/auth-services
     container_name: lv-auth-services
@@ -34,11 +65,6 @@ services:
       DB_NAME: linkay_auth
       DB_USER: root
       DB_PASSWORD: rootpassword
-      JWT_SECRET: change_this_secret_in_production
-      JWT_EXPIRES_IN: 15m
-      JWT_REFRESH_SECRET: change_this_refresh_secret_in_production
-      JWT_REFRESH_EXPIRES_IN: 7d
-      BCRYPT_SALT_ROUNDS: 12
     depends_on:
       mysql:
         condition: service_healthy
@@ -47,27 +73,43 @@ services:
     restart: unless-stopped
 
   ekyc-service:
-    container_name: ekyc-service
-    build:
-      context: ./services/ekyc-services   # ✅ corrected path
-      dockerfile: Dockerfile
+    build: ./services/ekyc-services
+    container_name: lv-ekyc-service
     env_file:
-      - ./services/ekyc-services/.env     # ✅ corrected path
+      - ./services/ekyc-services/.env
+    ports:
+      - "4004:4004"
     volumes:
       - ekyc_logs:/app/logs
     depends_on:
       mysql:
         condition: service_healthy
     networks:
-      - linkay-network   # ✅ use same network
-    ports:
-      - "4004:4004"
+      - linkay-network
     restart: unless-stopped
+
+  api-gateway:
+    build: ./services/api-gateway
+    container_name: lv-api-gateway
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./services/api-gateway/.env
+    volumes:
+      - api_gateway_logs:/app/logs
+    depends_on:
+      - kafka
+      - redis
+      - mysql
+    networks:
+      - linkay-network
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  api_gateway_logs:
+  ekyc_logs:
 
 networks:
   linkay-network:
     driver: bridge
-
-volumes:
-  mysql_data:
-  ekyc_logs:

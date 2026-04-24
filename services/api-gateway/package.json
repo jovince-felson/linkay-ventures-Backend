@@ -1,23 +1,29 @@
 {
-  "name": "api-gateway",
+  "name": "custom-apigateway",
   "version": "1.0.0",
-  "description": "",
+  "description": "A Custom API Gateway for the Linkay Fintech Application",
+  "license": "MIT",
+  "author": "mohan",
+  "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node index.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "axios": "^1.15.1",
+    "compression": "^1.8.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.3.2",
     "express-validator": "^7.3.2",
+    "helmet": "^8.1.0",
+    "http-proxy-middleware": "^3.0.5",
     "jsonwebtoken": "^9.0.3",
     "kafkajs": "^2.2.4",
+    "morgan": "^1.10.1",
     "mysql2": "^3.22.1",
+    "rhoam-shared-utils": "^1.0.3",
     "sequelize": "^6.37.8",
     "zod": "^4.3.6"
   },
