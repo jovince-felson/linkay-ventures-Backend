@@ -1,0 +1,14 @@
+{
+  "name": "linkeymicroservices",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Linkey Multi-RWA Tokenization Platform — Microservices",
+  "scripts": {
+    "install:all": "cd services/api-gateway && npm install && cd ../auth-services && npm install",
+    "dev:auth": "cd services/auth-services && npm run dev",
+    "dev:gateway": "cd services/api-gateway && npm run dev",
+    "docker:up": "docker-compose up --build",
+    "docker:down": "docker-compose down",
+    "docker:reset": "docker-compose down -v && docker-compose up --build"
+  }
+}
