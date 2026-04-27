@@ -8,14 +8,14 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
-const { DB_HOST, DB_PASS, DB_NAME, DB_USER, DB_PORT } = process.env;
+const { DB_HOST, DB_PASSWORD, DB_NAME, DB_USER, DB_PORT } = process.env;
 
 (async () => {
   const connection = await mysql.createConnection({
     host: DB_HOST,
     port: DB_PORT,
     user: DB_USER,
-    password: DB_PASS,
+    password: DB_PASSWORD,
   });
 
   await connection.query(`CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\``);

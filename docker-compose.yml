@@ -3,7 +3,6 @@ version: "3.8"
 networks:
   backend:
     driver: bridge
-    internal: true
   egress:
     driver: bridge
 
@@ -16,8 +15,11 @@ services:
   mysql:
     image: mysql:8.0
     container_name: mysql
-    env_file:
-      - services/auth-services/.env
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: linkay_gateway_service
+      MYSQL_USER: linkeydev
+      MYSQL_PASSWORD: root123
     volumes:
       - mysql_data:/var/lib/mysql
     networks:
@@ -45,11 +47,6 @@ services:
       - backend
       - egress
     restart: unless-stopped
-    read_only: true
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
 
   api-gateway:
     container_name: api-gateway
@@ -71,8 +68,3 @@ services:
       - backend
       - egress
     restart: unless-stopped
-    read_only: true
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
