@@ -1,0 +1,34 @@
+import express from "express";
+import { createProxyMiddleware } from "http-proxy-middleware";
+import { SERVICESV1 } from "../../config/services.js";
+import { verifyToken, ValidateSession } from "../../middlewares/auth.js";
+import { VerifyAdmin } from "linkay-shared-utils";
+import { GetLogs } from "../../controllers/log.controller.js";
+
+const router = express.Router();
+
+router.post("/api/v1/logs", VerifyAdmin, GetLogs);
+
+router.use(
+  "/api/v1/auth",
+  createProxyMiddleware({
+    target: SERVICESV1.AUTH_SERVICE_URL,
+    changeOrigin: true,
+    logLevel: "debug",
+    proxyTimeout: 30000,
+    timeout: 30000,
+    pathRewrite: (path) => `/api/v1/auth${path}`,
+  }),
+);
+
+
+
+router.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "Gateway route not found",
+    path: req.originalUrl,
+  });
+});
+
+export default router;
