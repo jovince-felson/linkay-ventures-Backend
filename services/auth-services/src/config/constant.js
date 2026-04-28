@@ -1,0 +1,17 @@
+export const SERVICE_TYPE = {
+    AUTH: "AUTH",
+}
+
+export const MODULES = {
+    ROLES: "ROLES",
+    PERMISSIONS: "PERMISSIONS",
+}
+
+export const ACTION = {
+    CREATED: "CREATED",
+    UPDATED: "UPDATED",
+    DELETED: "DELETED",
+    STATUSCHANGE: "STATUSCHANGE",
+    SENT: "SENT",
+    RECEIVED: "RECEIVED",
+}

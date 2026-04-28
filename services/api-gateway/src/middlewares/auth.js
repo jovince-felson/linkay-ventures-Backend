@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import axios from "axios";
-import { logger, RESPONSE_CODES } from "linkay-shared-utils";
+import { logger, RESPONSE_CODES } from "rhoam-shared-utils";
 
 dotenv.config();
 
@@ -47,6 +47,7 @@ export const verifyToken = (req, res, next) => {
         req.headers["x-admin"] = decoded.admin ? "true" : "false";
         req.headers["x-verified"] = decoded.verified ? "true" : "false";
         req.headers["x-ekyc-passed"] = decoded.ekyc_passed ? "true" : "false";
+        req.headers["x-role-scope"] = decoded.role_scope;
 
         if (decoded.permissions) {
             req.headers["x-permissions"] = JSON.stringify(decoded.permissions);

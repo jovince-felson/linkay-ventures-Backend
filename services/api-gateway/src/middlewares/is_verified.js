@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-import { logger } from "linkay-shared-utils";
+import { logger } from "rhoam-shared-utils";
 dotenv.config();
 
 export const isVerified = (req, res, next) => {

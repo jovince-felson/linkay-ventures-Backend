@@ -1,4 +1,4 @@
-import { decryptId, logger, RESPONSE_CODES } from "linkay-shared-utils";
+import { decryptId, logger, RESPONSE_CODES } from "rhoam-shared-utils";
 import UserTracking from "../models/user_tracking.models.js";
 import { request } from "express";
 

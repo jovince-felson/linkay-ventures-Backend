@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import morgan from "morgan";
 import gatewayV1Routes from "./src/routes/v1/gateway.routes.js";
 import sequelize from "./src/config/database.js";
-import { logger, Topics, listenToEvent } from "linkay-shared-utils";
+import { logger, Topics, listenToEvent } from "rhoam-shared-utils";
 import { routeGatewayEvent } from "./src/events/gateway.events.js";
 import helmet from "helmet";
 import { apiLimiter } from "./src/middlewares/ratelimit.js";
@@ -16,6 +16,7 @@ dotenv.config();
 const app = express();
 
 app.disable("x-powered-by");
+app.set("trust proxy", 1); // Allow rate limiter to accept X-Forwarded-For headers from proxy
 app.use(helmet());
 app.use(compression());
 app.use(apiLimiter);

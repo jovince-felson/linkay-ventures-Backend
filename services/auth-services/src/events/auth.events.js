@@ -1,8 +1,21 @@
-export const AUTH_EVENTS = {
-  USER_REGISTERED: 'auth.user.registered',
-  USER_LOGGED_IN: 'auth.user.loggedIn',
-  USER_LOGGED_OUT: 'auth.user.loggedOut',
-  EMAIL_VERIFIED: 'auth.email.verified',
-  WALLET_BOUND: 'auth.wallet.bound',
-  PASSWORD_RESET: 'auth.password.reset',
+import {Topics, Keys, logger} from "rhoam-shared-utils";
+import { EkycCompletion } from "../handlers/auth.handler.js";
+
+const eventHandlers = {
+    [Keys.EKYC_VERIFICATION_COMPLETED] : EkycCompletion,
+};
+
+export async function routeAuthEvents(key, data){
+    const handlers = eventHandlers[key];
+
+    if(handlers)
+    {
+        await handlers(data);
+    }
+
+    else
+    {
+        logger.error("No Handler Found For Auth Event Key",key);
+        console.warn(`No Handler Found For Event Key: ${key}`);
+    }
 };

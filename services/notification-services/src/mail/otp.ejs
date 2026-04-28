@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title><%= title %></title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f7f7f7;
+            padding: 20px;
+        }
+        .container {
+            max-width: 500px;
+            background: #ffffff;
+            padding: 25px;
+            border-radius: 8px;
+            margin: auto;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h2 {
+            text-align: center;
+            color: #333;
+        }
+        .message {
+            font-size: 15px;
+            color: #555;
+            margin: 15px 0;
+            text-align: center;
+        }
+        .otp-box {
+            font-size: 32px;
+            font-weight: bold;
+            text-align: center;
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 6px;
+            letter-spacing: 8px;
+            color: #222;
+            margin-top: 20px;
+        }
+        .footer {
+            margin-top: 25px;
+            text-align: center;
+            color: #777;
+            font-size: 13px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2><%= title %></h2>
+
+        <p class="message"><%= message %></p>
+
+        <div class="otp-box">
+            <%= otp %>
+        </div>
+
+        <p class="message">
+            This OTP was sent to: <strong><%= email %></strong>
+        </p>
+
+        <p class="message">
+            OTP is valid for: <strong><%= otp_expiry_text %></strong>
+        </p>
+
+        <div class="footer">
+            If you did not request this, please ignore this email.
+        </div>
+    </div>
+</body>
+</html>

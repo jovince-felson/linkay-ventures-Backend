@@ -1,9 +1,9 @@
 {
   "name": "custom-apigateway",
   "version": "1.0.0",
-  "description": "A Custom API Gateway for the Linkay Fintech Application",
+  "description": "A Custom API Gateway for the Rhoam Fintech Application",
   "license": "MIT",
-  "author": "Mohana ruben",
+  "author": "Jabez Nehemiah",
   "type": "module",
   "main": "index.js",
   "scripts": {
@@ -20,9 +20,9 @@
     "http-proxy-middleware": "^3.0.5",
     "jsonwebtoken": "^9.0.2",
     "kafkajs": "^2.2.4",
-    "linkay-shared-utils": "^1.0.3",
     "morgan": "^1.10.1",
     "mysql2": "^3.15.3",
+    "rhoam-shared-utils": "^1.0.2",
     "sequelize": "^6.37.7",
     "sequelize-cli": "^6.6.3"
   }

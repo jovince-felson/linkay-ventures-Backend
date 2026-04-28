@@ -3,23 +3,93 @@ version: "3.8"
 networks:
   backend:
     driver: bridge
+    internal: true
   egress:
     driver: bridge
 
 volumes:
+  zookeeper_data:
+  kafka_data:
+  redis_data:
   mysql_data:
-  api_gateway_logs:
+  admin_logs:
   auth_logs:
+  user_logs:
+  ekyc_logs:
+  file_logs:
+  file_uploads:
+  notification_logs:
+  api_gateway_logs:
+  support_logs:
+  referral_logs:
+  socket_logs:
+  subscription_logs:
+  log_service_logs:
+  risk_logs:
+  account_logs:
+  payment_logs:
+  wallet_logs:
+  ledger_logs:
 
 services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.1
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+    networks:
+      - backend
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.1
+    container_name: kafka
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    depends_on:
+      zookeeper:
+        condition: service_started
+    networks:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend
+    restart: unless-stopped
+
   mysql:
     image: mysql:8.0
     container_name: mysql
     environment:
-      MYSQL_ROOT_PASSWORD: root123
-      MYSQL_DATABASE: linkay_gateway_service
-      MYSQL_USER: linkeydev
-      MYSQL_PASSWORD: root123
+      MYSQL_ROOT_PASSWORD: TechzarRhoam
+      MYSQL_USER: rhoamdev
+      MYSQL_PASSWORD: AppStrong@123
     volumes:
       - mysql_data:/var/lib/mysql
     networks:
@@ -30,23 +100,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  auth-service:
-    container_name: auth-service
-    build:
-      context: ./services/auth-services
-      dockerfile: Dockerfile
-    env_file:
-      - services/auth-services/.env
-    volumes:
-      - auth_logs:/app/logs
-    depends_on:
-      mysql:
-        condition: service_healthy
-    networks:
-      - backend
-      - egress
-    restart: unless-stopped
 
   api-gateway:
     container_name: api-gateway
@@ -60,11 +113,409 @@ services:
     volumes:
       - api_gateway_logs:/app/logs
     depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
       mysql:
         condition: service_healthy
-      auth-service:
-        condition: service_started
     networks:
       - backend
       - egress
     restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  auth-service:
+    container_name: auth-service
+    build:
+      context: ./services/auth-services
+      dockerfile: Dockerfile
+    env_file:
+      - services/auth-services/.env
+    volumes:
+      - auth_logs:/app/logs
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend
+      - egress
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  user-service:
+    container_name: user-service
+    build:
+      context: ./services/user-services
+      dockerfile: Dockerfile
+    env_file:
+      - services/user-services/.env
+    volumes:
+      - user_logs:/app/logs
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend
+      - egress
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  admin-service:
+    container_name: admin-service
+    build:
+      context: ./services/admin-services
+      dockerfile: Dockerfile
+    env_file:
+      - services/admin-services/.env
+    volumes:
+      - admin_logs:/app/logs
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  ekyc-service:
+    container_name: ekyc-service
+    build:
+      context: ./services/ekyc-services
+      dockerfile: Dockerfile
+    env_file:
+      - services/ekyc-services/.env
+    volumes:
+      - ekyc_logs:/app/logs
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend
+      - egress
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  file-service:
+    container_name: file-service
+    build:
+      context: ./services/file-service
+      dockerfile: Dockerfile
+    env_file:
+      - services/file-service/.env
+    volumes:
+      - file_logs:/app/logs:rw
+      - file_uploads:/app/uploads:rw
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend
+      - egress
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  notification-service:
+    container_name: notification-service
+    build:
+      context: ./services/notification-services
+      dockerfile: Dockerfile
+    env_file:
+      - services/notification-services/.env
+    volumes:
+      - notification_logs:/app/logs
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend
+      - egress
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  support-service:
+    container_name: support-service
+    build:
+      context: ./services/support-services
+      dockerfile: Dockerfile
+    env_file:
+      - services/support-services/.env
+    volumes:
+      - support_logs:/app/logs
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend
+      - egress
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  referral-service:
+    container_name: referral-service
+    build:
+      context: ./services/referral-services
+      dockerfile: Dockerfile
+    env_file:
+      - services/referral-services/.env
+    volumes:
+      - referral_logs:/app/logs
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend
+      - egress
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+  
+  subscription-service:
+    container_name: subscription-service
+    build:
+      context: ./services/subscription-services
+      dockerfile: Dockerfile
+    env_file:
+      - services/subscription-services/.env
+    volumes:
+      - subscription_logs:/app/logs
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend
+      - egress
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  socket-service:
+    container_name: socket-service
+    build:
+      context: ./services/socket-services
+      dockerfile: Dockerfile
+    ports:
+      - "4008:4008"
+    env_file:
+      - services/socket-services/.env
+    volumes:
+      - socket_logs:/app/logs
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend
+      - egress
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+     
+  log-service:
+    container_name: log-service
+    build:
+      context: ./services/log-services
+      dockerfile: Dockerfile
+    env_file:
+      - services/log-services/.env
+    volumes:
+      - log_service_logs:/app/logs
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend
+      - egress
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+      
+  payment-services:
+    container_name: payment-services
+    build:
+      context: ./services/payment-services
+      dockerfile: Dockerfile
+    env_file:
+      - services/payment-services/.env
+    volumes:
+      - payment_logs:/app/logs
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend
+      - egress
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  risk-service:
+    container_name: risk-service
+    build:
+      context: ./services/risk-services
+      dockerfile: Dockerfile
+    env_file:
+      - services/risk-services/.env
+    volumes:
+      - risk_logs:/app/logs
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend
+      - egress
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  account-service:
+    container_name: account-service
+    build:
+      context: ./services/account-services
+      dockerfile: Dockerfile
+    env_file:
+      - services/account-services/.env
+    volumes:
+      - account_logs:/app/logs
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend
+      - egress
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  wallet-service:
+    container_name: wallet-service
+    build:
+      context: ./services/wallet-services
+      dockerfile: Dockerfile
+    env_file:
+      - services/wallet-services/.env
+    volumes:
+      - wallet_logs:/app/logs
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend
+      - egress
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  ledger-service:
+    container_name: ledger-service
+    build:
+      context: ./services/ledger-services
+      dockerfile: Dockerfile
+    env_file:
+      - services/ledger-services/.env
+    volumes:
+      - ledger_logs:/app/logs
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend
+      - egress
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+
+
+
+
+

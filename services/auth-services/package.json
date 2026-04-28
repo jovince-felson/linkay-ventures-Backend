@@ -1,35 +1,34 @@
 {
-  "name": "auth-services",
+  "name": "authentication-service",
   "version": "1.0.0",
-  "description": "Authentication microservice for Linkey platform",
-  "main": "src/index.js",
+  "description": "Authentication Micro Service For Rhoam Project",
+  "license": "MIT",
+  "author": "Jabez Nehemiah",
   "type": "module",
+  "main": "index.js",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "nodemon src/index.js",
-    "migrate": "node src/migrations/run.js",
-    "seed": "node src/seeders/run.js",
-    "db:init": "node scripts/db_init.js"
+    "test": "node index.js"
   },
   "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "cookie-parser": "^1.4.6",
+    "@simplewebauthn/server": "^13.2.2",
+    "apple-signin-auth": "^2.0.0",
+    "axios": "^1.13.2",
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "dotenv": "^16.6.1",
-    "ethers": "^6.12.1",
-    "express": "^4.19.2",
-    "express-rate-limit": "^7.3.1",
-    "express-validator": "^7.1.0",
-    "helmet": "^7.1.0",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "express-validator": "^7.3.0",
+    "google-auth-library": "^10.5.0",
+    "ioredis": "^5.9.2",
     "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.10.0",
-    "mysql2": "^3.9.7",
-    "nodemailer": "^6.9.13",
-    "sequelize": "^6.37.3",
-    "uuid": "^10.0.0",
-    "winston": "^3.13.0"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.3"
+    "kafkajs": "^2.2.4",
+    "mysql2": "^3.15.3",
+    "qrcode": "^1.5.4",
+    "rhoam-shared-utils": "^1.0.2",
+    "sequelize": "^6.37.7",
+    "sequelize-cli": "^6.6.3",
+    "speakeasy": "^2.0.0",
+    "zod": "^4.1.13"
   }
 }

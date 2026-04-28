@@ -1,0 +1,33 @@
+{
+  "name": "notification-service",
+  "version": "1.0.0",
+  "description": "Notification Service for Rhoam MicroService Application",
+  "license": "MIT",
+  "author": "Jabez Nehemiah",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "node index"
+  },
+  "dependencies": {
+    "body-parser": "^2.2.0",
+    "bull": "^4.16.5",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "ejs": "^3.1.10",
+    "express": "^5.1.0",
+    "express-validator": "^7.3.0",
+    "firebase-admin": "^13.6.0",
+    "ioredis": "^5.8.2",
+    "kafkajs": "^2.2.4",
+    "morgan": "^1.10.1",
+    "mysql2": "^3.15.3",
+    "node-cron": "^4.2.1",
+    "nodemailer": "^7.0.10",
+    "rhoam-shared-utils": "^1.0.2",
+    "sequelize": "^6.37.7",
+    "sequelize-cli": "^6.6.3",
+    "twilio": "^5.12.2",
+    "zod": "^4.3.6"
+  }
+}

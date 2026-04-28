@@ -1,0 +1,14 @@
+export const SERVICE_TYPE = {
+    NOTIFICATION: "NOTIFICATION",
+};
+
+export const MODULES = {
+    NOTIFICATION: "NOTIFICATION",
+};
+
+export const ACTION = {
+    CREATED: "CREATED",
+    UPDATED: "UPDATED",
+    DELETED: "DELETED",
+    STATUSCHANGE: "STATUSCHANGE",
+};

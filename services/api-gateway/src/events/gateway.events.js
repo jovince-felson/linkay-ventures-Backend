@@ -1,10 +1,8 @@
-import { Topics, Keys } from "linkay-shared-utils";
-import { ErrorHandler, AuditHandler} from '../handlers/gateway.handlers.js';
+import { Topics, Keys } from "rhoam-shared-utils";
 
 
 const eventHandlers = {
-    [Keys.ERRORS]: ErrorHandler,
-    [Keys.AUDIT_EVENTS] : AuditHandler,
+
 };
 
 

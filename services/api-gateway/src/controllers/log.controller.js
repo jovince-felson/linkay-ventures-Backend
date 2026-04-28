@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import {logger} from "linkay-shared-utils";
+import {logger} from "rhoam-shared-utils";
 
 export const GetLogs = async (req, res) => {
     try {

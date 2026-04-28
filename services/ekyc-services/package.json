@@ -1,0 +1,25 @@
+{
+  "name": "ekyc-service",
+  "version": "1.0.0",
+  "description": "Ekyc Service For Rhoam FinTech",
+  "license": "MIT",
+  "author": "Jabez Nehemiah",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "node index.js"
+  },
+  "dependencies": {
+    "axios": "^1.13.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "express-validator": "^7.3.0",
+    "kafkajs": "^2.2.4",
+    "mysql2": "^3.15.3",
+    "rhoam-shared-utils": "^1.0.2",
+    "sequelize": "^6.37.7",
+    "sequelize-cli": "^6.6.3",
+    "zod": "^4.1.13"
+  }
+}

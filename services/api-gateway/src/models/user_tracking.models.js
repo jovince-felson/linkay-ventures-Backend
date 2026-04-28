@@ -1,51 +1,51 @@
-import {DataTypes} from "sequelize";
+import { DataTypes } from "sequelize";
 import sequelize from "../config/database.js";
 
 
-const UserTracking = sequelize.define("user_tracking",{
-    id:{
+const UserTracking = sequelize.define("user_tracking", {
+    id: {
         type: DataTypes.INTEGER,
         allowNull: false,
         primaryKey: true,
         autoIncrement: true,
     },
-    user_id:{
+    user_id: {
         type: DataTypes.INTEGER,
         allowNull: true,
         defaultValue: 0,
     },
 
-    session_id:{
+    session_id: {
         type: DataTypes.INTEGER,
         allowNull: true,
         defaultValue: 0,
     },
 
-    requested_url:{
+    requested_url: {
         type: DataTypes.TEXT,
         allowNull: true,
     },
 
-    user_agent:{
+    user_agent: {
         type: DataTypes.TEXT,
         allowNull: true,
     },
 
-    ip:{
+    ip: {
         type: DataTypes.TEXT,
         allowNull: true,
     },
 
-    created_at:{
+    created_at: {
         type: DataTypes.DATE,
         allowNull: true,
     },
 
-    updated_at:{
+    updated_at: {
         type: DataTypes.DATE,
         allowNull: true,
     },
-},{
+}, {
     timestamps: false,
     tableName: "user_tracking",
 });
