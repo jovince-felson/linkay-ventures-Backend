@@ -50,11 +50,15 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT
+      # INTERNAL — used by other Docker containers (service-to-service)
+      # EXTERNAL — used by PM2 services running on the host
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    ports:
+      - "9093:9093"
     depends_on:
       zookeeper:
         condition: service_started
@@ -71,6 +75,8 @@ services:
     image: redis:7-alpine
     container_name: redis
     command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -81,9 +87,12 @@ services:
     image: mysql:8.0
     container_name: mysql
     environment:
-      MYSQL_ROOT_PASSWORD: TechzarRhoam
-      MYSQL_USER: rhoamdev
-      MYSQL_PASSWORD: AppStrong@123
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: linkey_auth
+      MYSQL_USER: linkay_gateway_service
+      MYSQL_PASSWORD: root123
+    ports:
+      - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     networks:
@@ -124,6 +133,8 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+
+      
 
   auth-service:
     container_name: auth-service
@@ -209,7 +220,7 @@ services:
       context: ./services/notification-services
       dockerfile: Dockerfile
     env_file:
-      - services/notification-services/.env
+      - ./services/notification-services/.env
     volumes:
       - notification_logs:/app/logs
     tmpfs:

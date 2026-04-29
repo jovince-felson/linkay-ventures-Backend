@@ -1,21 +1,13 @@
 FROM node:20-alpine
 
-RUN apk update && apk upgrade && apk add --no-cache dumb-init
-
-RUN addgroup -S app && adduser -S app -G app
-
 WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm ci --omit=dev --no-audit --no-fund
+RUN npm install --omit=dev
 
 COPY . .
 
-RUN mkdir -p logs && chown -R app:app /app
+EXPOSE 3001
 
-USER app
-
-EXPOSE 4000
-
-CMD ["dumb-init", "node", "index.js"]
+CMD ["node", "src/index.js"]

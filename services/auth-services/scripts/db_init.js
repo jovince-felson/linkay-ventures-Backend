@@ -1,24 +1,30 @@
-import path from "path";
-import { fileURLToPath } from "url";
-import dotenv from "dotenv";
-import mysql from "mysql2/promise";
+/**
+ * db_init.js — run once to create the database and seed roles
+ * Usage: node scripts/db_init.js
+ */
+import 'dotenv/config';
+import { connectDB } from '../src/config/database.js';
+import { User, AuditLog, WalletNonce } from '../src/models/index.js';
+import logger from '../src/utils/logger.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const init = async () => {
+  try {
+    logger.info('Initialising database...');
+    await connectDB();
+    logger.info('Tables synced successfully');
 
-dotenv.config({ path: path.resolve(__dirname, "../.env") });
+    // Check if super admin already seeded
+    const adminExists = await User.findOne({ where: { role: 'SUPER_ADMIN' } });
+    if (!adminExists) {
+      logger.info('No SUPER_ADMIN found. Please create one via the API or add a seeder.');
+    }
 
-const { DB_HOST, DB_PASS, DB_NAME, DB_USER, DB_PORT } = process.env;
+    logger.info('Database initialisation complete.');
+    process.exit(0);
+  } catch (error) {
+    logger.error('Database initialisation failed:', error);
+    process.exit(1);
+  }
+};
 
-(async () => {
-  const connection = await mysql.createConnection({
-    host: DB_HOST,
-    port: DB_PORT,
-    user: DB_USER,
-    password: DB_PASS,
-  });
-
-  await connection.query(`CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\``);
-  console.log(`Database ensured: ${DB_NAME}`);
-  process.exit(0);
-})();
+init();

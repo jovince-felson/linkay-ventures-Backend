@@ -8,7 +8,7 @@ import { routeGatewayEvent } from "./src/events/gateway.events.js";
 import helmet from "helmet";
 import { apiLimiter } from "./src/middlewares/ratelimit.js";
 import compression from "compression";
-
+import { listenToEvent, Topics, logger } from "linkay-shared-utils";
 
 dotenv.config();
 
@@ -35,9 +35,10 @@ app.use("/", gatewayV1Routes);
         } catch (err) {
           logger.error("Error inside routeGatewayEvent", err);
         }
-      }
+      },
     );
   } catch (err) {
+    console.error("Fatal Kafka Listener Error", err);
     logger.error("Fatal Kafka Listener Error", err);
   }
 })();
