@@ -1,18 +1,6 @@
 export const SERVICESV1 = {
   AUTH_SERVICE_URL: "http://auth-service:4000",
-  USER_SERVICE_URL: "http://user-service:4001",
-  ADMIN_SERVICE_URL: "http://admin-service:4003",
   NOTIFICATION_SERVICE_URL: "http://notification-service:4002",
   EKYC_SERVICE_URL: "http://ekyc-service:4004",
   FILE_UPLOAD_SERVICE_URL: "http://file-service:4005",
-  SUPPORT_SERVICE_URL:"http://support-service:4007",
-  SOCKET_SERVICE_URL:"http://socket-service:4008",
-  REFERRAL_SERVICE_URL:"http://referral-service:4009",
-  ACCOUNT_SERVICE_URL:"http://account-service:4010",
-  SUBSCRIPTION_SERVICE_URL:"http://subscription-service:4011",
-  LOGS_SERVICES:"http://logs-services:4012",
-  RISK_SERVICE_URL:"http://risk-service:4013",
-  WALLET_SERVICE_URL:"http://wallet-service:4014",
-  PAYMENT_SERVICE_URL: "http://payment-services:4015",
-  LEDGER_SERVICE_URL: "http://ledger-service:4016",
 };
