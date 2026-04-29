@@ -1,4 +1,4 @@
-import { Topics, Keys } from "rhoam-shared-utils";
+import { Topics, Keys } from "linkay-shared-utils";
 
 
 const eventHandlers = {

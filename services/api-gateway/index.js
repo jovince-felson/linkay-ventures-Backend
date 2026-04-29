@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import morgan from "morgan";
 import gatewayV1Routes from "./src/routes/v1/gateway.routes.js";
 import sequelize from "./src/config/database.js";
-import { logger, Topics, listenToEvent } from "rhoam-shared-utils";
+import { logger, Topics, listenToEvent } from "linkay-shared-utils";
 import { routeGatewayEvent } from "./src/events/gateway.events.js";
 import helmet from "helmet";
 import { apiLimiter } from "./src/middlewares/ratelimit.js";

@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import axios from "axios";
-import { logger, RESPONSE_CODES } from "rhoam-shared-utils";
+import { logger, RESPONSE_CODES } from "linkay-shared-utils";
 
 dotenv.config();
 
