@@ -73,7 +73,18 @@ router.use(
     pathRewrite: (path) => `/api/v1/file${path}`,
   }),
 );
-
+router.use(
+  "/api/v1/admin",
+  verifyToken,
+  createProxyMiddleware({
+    target: SERVICESV1.AUTH_SERVICE_URL,
+    changeOrigin: true,
+    logLevel: "debug",
+    proxyTimeout: 30000,
+    timeout: 30000,
+    pathRewrite: (path) => `/api/v1/admin${path}`,
+  }),
+);
 router.use((req, res) => {
   res.status(404).json({
     success: false,

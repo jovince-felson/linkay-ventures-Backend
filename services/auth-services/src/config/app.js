@@ -7,6 +7,7 @@ import authRoutes from '../routes/auth.routes.js';
 import { errorHandler } from '../middlewares/error.middleware.js';
 import { notFound } from '../middlewares/notFound.middleware.js';
 import logger from '../utils/logger.js';
+import adminRoutes from "../routes/admin.routes.js"
 
 const app = express();
 
@@ -40,7 +41,7 @@ app.get('/health', (_req, res) => {
 
 // Routes
 app.use('/auth', authRoutes);
-
+app.use('/api/v1/admin', adminRoutes);
 // 404 handler
 app.use(notFound);
 

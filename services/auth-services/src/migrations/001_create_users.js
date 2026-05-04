@@ -39,7 +39,7 @@ export const up = async (queryInterface, Sequelize) => {
       ),
       allowNull: false,
       defaultValue: 'INVESTOR',
-    },
+    }, 
     status: {
       type: DataTypes.ENUM(
         'PENDING_VERIFICATION',
