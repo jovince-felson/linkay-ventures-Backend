@@ -1,10 +1,11 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../config/database.js';
+import crypto from 'crypto';
 
 const User = sequelize.define('User', {
   id: {
     type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
+    defaultValue: DataTypes.UUIDV4, // cSpell:ignore UUIDV4
     primaryKey: true,
   },
   email: {
@@ -85,11 +86,37 @@ const User = sequelize.define('User', {
   passwordResetExpires: {
     type: DataTypes.DATE,
     allowNull: true,
+  },  is_super_admin: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+ is_user: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  is_museum_user: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+ museum_id: {
+    type: DataTypes.UUID,
+    allowNull: true,
+  },
+  rejectedReason: {
+    type: DataTypes.STRING(1000),
+    allowNull: true,
   },
 }, {
   tableName: 'users',
   timestamps: true,
   underscored: true,
+  hooks: {
+    beforeCreate(user) {
+      if (user.role === 'MUSEUM_ADMIN') {
+        user.museum_id = crypto.randomUUID();
+      }
+    },
+  },
 });
 
 export default User;

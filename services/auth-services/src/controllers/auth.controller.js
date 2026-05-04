@@ -22,7 +22,7 @@ import { AUTH_EVENTS } from "../events/auth.events.js";
 // POST /auth/register
 export const register = async (req, res, next) => {
   try {
-    const { email, password, firstName, lastName, countryOfResidence } =
+    const { email, password, firstName, lastName, countryOfResidence,role, isSuperAdmin, isUser, isMuseumUser } =
       req.body;
 
     // Check email uniqueness — never reveal if email exists (anti-enumeration)
@@ -50,10 +50,13 @@ export const register = async (req, res, next) => {
       firstName,
       lastName,
       countryOfResidence: countryOfResidence.toUpperCase(),
-      role: "INVESTOR",
+      role: role?.toUpperCase(),
       status: "PENDING_VERIFICATION",
       emailVerified: false,
       emailVerificationToken: emailToken,
+      is_super_admin: isSuperAdmin,
+      is_user: isUser,
+      is_museum_user: isMuseumUser,
     });
 
     await writeAuditLog({ userId: user.id, event: AuditEvents.REGISTER, req });
@@ -74,7 +77,7 @@ export const register = async (req, res, next) => {
   }
 };
 
-// GET /auth/verifyemail?token=<jwt>
+// GET /auth/verifyEmail?token=<jwt>
 export const verifyEmail = async (req, res, next) => {
   try {
     const { token } = req.query;
