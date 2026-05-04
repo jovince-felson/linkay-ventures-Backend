@@ -1,5 +1,5 @@
 import express from 'express';
-import { getPendingMuseumUsers } from '../controllers/admin.controller.js';
+import { getPendingMuseumUsers, reviewMuseumUser } from '../controllers/admin.controller.js';
 import { requireRole } from '../middlewares/requireRole.js';
 
 const router = express.Router();
@@ -11,5 +11,12 @@ router.get(
   getPendingMuseumUsers,
 );
 
+
+// PATCH /api/v1/admin/users/:userId/review
+router.patch(
+  '/users/:userId/review',
+  requireRole('SUPER_ADMIN'),
+  reviewMuseumUser,
+);
 
 export default router;

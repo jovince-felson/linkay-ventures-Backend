@@ -174,9 +174,9 @@ export const login = async (req, res, next) => {
       );
     }
 
-    if (user.status !== "ACTIVE") {
+    if (user.status !== "ACCEPTED") {
       throw new AppError(
-        "Your account is not active. Contact support.",
+        "Your account is not accepted. Contact support.",
         403,
         "AUTH_007",
       );

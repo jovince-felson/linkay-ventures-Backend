@@ -38,7 +38,7 @@ const User = sequelize.define('User', {
     defaultValue: 'INVESTOR',
   },
   status: {
-    type: DataTypes.ENUM('PENDING_VERIFICATION', 'ACTIVE', 'SUSPENDED', 'DEACTIVATED'),
+    type: DataTypes.ENUM('PENDING_VERIFICATION', 'ACTIVE', 'SUSPENDED', 'DEACTIVATED', 'ACCEPTED', 'REJECTED'),
     allowNull: false,
     defaultValue: 'PENDING_VERIFICATION',
   },

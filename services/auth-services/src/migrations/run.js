@@ -10,6 +10,7 @@ import { up as createAuditLogs } from './002_create_audit_logs.js';
 import { up as createWalletNonces } from './003_create_wallet_nonces.js';
 import { up as addMuseumId } from './004_add_museum_id_to_users.js';
 import { up as addMissingColumns } from './005_add_missing_columns_to_users.js';
+import { up as updateStatusEnum } from './006_update_status_enum.js';
 import logger from '../utils/logger.js';
 
 const migrations = [
@@ -18,6 +19,7 @@ const migrations = [
   { name: '003_create_wallet_nonces', fn: createWalletNonces },
   { name: '004_add_museum_id_to_users', fn: addMuseumId },
   { name: '005_add_missing_columns_to_users', fn: addMissingColumns },
+  { name: '006_update_status_enum', fn: updateStatusEnum },
 ];
 
 const runMigrations = async () => {
