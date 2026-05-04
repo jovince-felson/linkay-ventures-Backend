@@ -324,6 +324,31 @@ export const refreshToken = async (req, res, next) => {
   }
 };
 
+// GET /auth/pending-museum-users
+export const getPendingMuseumUsers = async (req, res, next) => {
+  try {
+    const users = await User.findAll({
+      where: {
+        status: "PENDING_VERIFICATION",
+        is_museum_user: true,
+      },
+      attributes: [
+        "id",
+        "email",
+        "firstName",
+        "lastName",
+        "role",
+        "museum_id",
+        "status",
+        "createdAt",
+      ],
+    });
+    return res.json({ success: true, users });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // GET /auth/me
 export const getMe = async (req, res, next) => {
   try {

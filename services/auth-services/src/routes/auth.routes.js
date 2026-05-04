@@ -6,10 +6,11 @@ import {
   logout,
   refreshToken,
   getMe,
+  getPendingMuseumUsers,
 } from '../controllers/auth.controller.js';
 import { getWalletNonce, bindWallet } from '../controllers/wallet.controller.js';
 import { forgotPassword, resetPassword } from '../controllers/password.controller.js';
-import { authenticate } from '../middlewares/auth.middleware.js';
+import { authenticate, authorize } from '../middlewares/auth.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import {
   loginRateLimiter,
@@ -41,6 +42,7 @@ router.post('/reset-password', resetPasswordValidator, validate, resetPassword);
 // --- Protected routes ---
 router.post('/logout', authenticate, logout);
 router.get('/me', authenticate, getMe);
+router.get('/pending-museum-users', authenticate, authorize('SUPER_ADMIN'), getPendingMuseumUsers);
 
 // --- Wallet routes (protected) ---
 router.get('/walletnonce', authenticate, walletNonceRateLimiter, walletNonceValidator, validate, getWalletNonce);
