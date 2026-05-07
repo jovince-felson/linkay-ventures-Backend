@@ -164,15 +164,16 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  ekyc-service:
-    container_name: ekyc-service
+ 
+  notification-service:
+    container_name: notification-service
     build:
-      context: ./services/ekyc-services
+      context: ./services/notification-services
       dockerfile: Dockerfile
     env_file:
-      - services/ekyc-services/.env
+      - ./services/notification-services/.env
     volumes:
-      - ekyc_logs:/app/logs
+      - notification_logs:/app/logs
     tmpfs:
       - /tmp
     depends_on:
@@ -190,46 +191,18 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  file-service:
-    container_name: file-service
+  ekyc-service:
+    container_name: ekyc-service
     build:
-      context: ./services/file-service
+      context: ./services/ekyc-service
       dockerfile: Dockerfile
     env_file:
-      - services/file-service/.env
+      - ./services/ekyc-service/.env
     volumes:
-      - file_logs:/app/logs:rw
-      - file_uploads:/app/uploads:rw
+      - ekyc_logs:/app/logs
     tmpfs:
       - /tmp
     depends_on:
-      kafka:
-        condition: service_healthy
-      mysql:
-        condition: service_healthy
-    networks:
-      - backend
-      - egress
-    restart: unless-stopped
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-
-  notification-service:
-    container_name: notification-service
-    build:
-      context: ./services/notification-services
-      dockerfile: Dockerfile
-    env_file:
-      - ./services/notification-services/.env
-    volumes:
-      - notification_logs:/app/logs
-    tmpfs:
-      - /tmp
-    depends_on:
-      kafka:
-        condition: service_healthy
       mysql:
         condition: service_healthy
     networks:
