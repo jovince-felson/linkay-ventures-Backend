@@ -1,3 +1,5 @@
+
+
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -15,12 +17,7 @@ const app = express();
 app.use(helmet());
 
 // CORS
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+
 
 // Body parsers
 app.use(express.json({ limit: '10kb' }));

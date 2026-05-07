@@ -1,4 +1,5 @@
 import { DataTypes } from 'sequelize';
+import { fileURLToPath } from 'url';
 import 'dotenv/config';
 import sequelize from '../config/database.js';
 
@@ -27,4 +28,6 @@ const run = async () => {
   }
 };
 
-run();
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  run();
+}
