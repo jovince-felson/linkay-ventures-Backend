@@ -6,10 +6,11 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import authRoutes from '../routes/auth.routes.js';
+import adminRoutes from '../routes/admin.routes.js';
+import internalKycRoutes from '../routes/internal.kyc.routes.js';
 import { errorHandler } from '../middlewares/error.middleware.js';
 import { notFound } from '../middlewares/notFound.middleware.js';
 import logger from '../utils/logger.js';
-import adminRoutes from "../routes/admin.routes.js"
 
 const app = express();
 
@@ -39,6 +40,8 @@ app.get('/health', (_req, res) => {
 // Routes
 app.use('/auth', authRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/internal', internalKycRoutes);
+
 // 404 handler
 app.use(notFound);
 

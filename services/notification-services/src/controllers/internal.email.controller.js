@@ -97,3 +97,79 @@ export const sendPasswordResetEmail = async (req, res) => {
     return res.status(500).json({ success: false, message: "Failed to send email" });
   }
 };
+
+export const sendKycApprovedEmail = async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ success: false, message: "email is required" });
+
+  try {
+    const transporter = await getTransporter();
+    await transporter.sendMail({
+      from: FROM(),
+      to: email,
+      subject: "Identity Verified — Linkay",
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+          <h2 style="color:#16A34A;">Your identity has been verified!</h2>
+          <p>Congratulations — your KYC verification was successful. You now have full access to the Linkay platform.</p>
+          <p style="color:#666;font-size:14px;">If you have any questions, contact our support team.</p>
+        </div>
+      `,
+    });
+    return res.json({ success: true, message: "KYC approved email sent" });
+  } catch (err) {
+    console.error("sendKycApprovedEmail error:", err.message);
+    return res.status(500).json({ success: false, message: "Failed to send email" });
+  }
+};
+
+export const sendKycRejectedEmail = async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ success: false, message: "email is required" });
+
+  try {
+    const transporter = await getTransporter();
+    await transporter.sendMail({
+      from: FROM(),
+      to: email,
+      subject: "Identity Verification Failed — Linkay",
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+          <h2 style="color:#DC2626;">Identity Verification Unsuccessful</h2>
+          <p>Unfortunately, we were unable to verify your identity. This could be due to unclear documents or a mismatch in your information.</p>
+          <p>Please contact our support team for assistance.</p>
+          <p style="color:#666;font-size:14px;">We apologise for any inconvenience caused.</p>
+        </div>
+      `,
+    });
+    return res.json({ success: true, message: "KYC rejected email sent" });
+  } catch (err) {
+    console.error("sendKycRejectedEmail error:", err.message);
+    return res.status(500).json({ success: false, message: "Failed to send email" });
+  }
+};
+
+export const sendKycResubmitEmail = async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ success: false, message: "email is required" });
+
+  try {
+    const transporter = await getTransporter();
+    await transporter.sendMail({
+      from: FROM(),
+      to: email,
+      subject: "Action Required: Resubmit your KYC documents — Linkay",
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+          <h2 style="color:#D97706;">Additional Documents Required</h2>
+          <p>Your identity verification requires additional information. Please log in to your Linkay dashboard and resubmit your documents.</p>
+          <p style="color:#666;font-size:14px;">If you need help, our support team is available to assist you.</p>
+        </div>
+      `,
+    });
+    return res.json({ success: true, message: "KYC resubmit email sent" });
+  } catch (err) {
+    console.error("sendKycResubmitEmail error:", err.message);
+    return res.status(500).json({ success: false, message: "Failed to send email" });
+  }
+};
