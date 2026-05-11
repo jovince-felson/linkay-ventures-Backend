@@ -41,15 +41,30 @@ export const createApplicant = async ({ externalUserId, email, country, firstNam
   const path = `/resources/applicants?levelName=${encodeURIComponent(sumsubConfig.levelName)}`;
   const body = { externalUserId, email };
 
-  const fixedInfo = {};
-  if (country) fixedInfo.country = country;
-  if (firstName) fixedInfo.firstName = firstName;
-  if (lastName) fixedInfo.lastName = lastName;
-  if (Object.keys(fixedInfo).length) body.fixedInfo = fixedInfo;
+  // fixedInfo locks data — only lock country, NOT name
+  // Name must come from the verified document, not registration data
+  if (country) body.fixedInfo = { country };
 
-  const data = await sumsubRequest('POST', path, body);
-  return data.id;
+  // Pass registration name as a hint only (suggestive, overridable by document)
+  const info = {};
+  if (firstName) info.firstName = firstName;
+  if (lastName) info.lastName = lastName;
+  if (Object.keys(info).length) body.info = info;
+
+  try {
+    const data = await sumsubRequest('POST', path, body);
+    return data.id;
+  } catch (err) {
+    const match = err.message?.match(/already exists:\s*([a-f0-9]+)/i);
+    if (match) {
+      logger.info(`[Sumsub] Reusing existing applicant: ${match[1]}`);
+      return match[1];
+    }
+    throw err;
+  }
 };
+
+
 
 
 export const generateSDKToken = async (externalUserId) => {
