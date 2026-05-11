@@ -178,7 +178,7 @@ router.use(
     proxyTimeout: 60000,
     timeout: 60000,
     pathRewrite: (path) => `/api/v1/files${path}`,
-    on: { error: onProxyError },
+    on: { proxyRes: injectCors },
   }),
 );
 
@@ -192,7 +192,7 @@ router.use(
     proxyTimeout: 60000,
     timeout: 60000,
     pathRewrite: (path) => `/api/v1/assets${path}`,
-    on: { error: onProxyError },
+    on: { proxyRes: injectCors },
   }),
 );
 

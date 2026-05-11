@@ -1,6 +1,6 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import morgan from "morgan";
 import gatewayV1Routes from "./src/routes/v1/gateway.routes.js";
 import sequelize from "./src/config/database.js";
@@ -9,8 +9,6 @@ import helmet from "helmet";
 import { apiLimiter } from "./src/middlewares/ratelimit.js";
 import compression from "compression";
 import { listenToEvent, Topics, logger } from "linkay-shared-utils";
-
-dotenv.config();
 
 const app = express();
 
