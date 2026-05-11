@@ -33,7 +33,7 @@ router.use(generalRateLimiter);
 
 // --- Public routes ---
 router.post('/register', registerValidator, validate, register);
-router.get('/verifyemail', verifyEmail);
+router.get('/verify-email', verifyEmail);
 router.post('/login', loginRateLimiter, loginValidator, validate, login);
 router.post('/refresh', refreshToken);
 router.post('/forgot-password', forgotPasswordValidator, validate, forgotPassword);

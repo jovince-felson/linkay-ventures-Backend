@@ -27,12 +27,17 @@ export const verifyToken = (req, res, next) => {
     req.headers["x-user-email"] = decoded.email;
     req.headers["x-user-role"] = decoded.role;
     req.headers["x-wallet-address"] = decoded.walletAddress || "";
+    req.headers["x-user-first-name"] = decoded.firstName || "";
+    req.headers["x-user-last-name"] = decoded.lastName || "";
+
 
     req.user = {
       userId: decoded.userId,
       email: decoded.email,
       role: decoded.role,
       walletAddress: decoded.walletAddress,
+      firstName: decoded.firstName,
+      lastName: decoded.lastName,
     };
 
     next();

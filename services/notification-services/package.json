@@ -6,7 +6,7 @@
   "author": "Jabez Nehemiah",
   "type": "module",
   "main": "index.js",
- "scripts": {
+  "scripts": {
     "dev": "nodemon index.js",
     "start": "node index.js"
   },
@@ -26,6 +26,7 @@
     "mysql2": "^3.15.3",
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.10",
+    "nodemon": "^3.1.14",
     "rhoam-shared-utils": "^1.0.2",
     "sequelize": "^6.37.7",
     "sequelize-cli": "^6.6.3",

@@ -16,6 +16,23 @@ const app = express();
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1); // Allow rate limiter to accept X-Forwarded-For headers from proxy
+// app.use(cors({
+//   origin: (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()),
+//   credentials: true,
+// }));
+app.use(cors({
+  origin: function (origin, callback) {
+    const allowed = (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim());
+    if (!origin || allowed.includes(origin)) {
+      callback(null, origin || true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+}));
+
+
 app.use(helmet());
 app.use(compression());
 app.use(apiLimiter);

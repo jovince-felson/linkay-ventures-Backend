@@ -81,7 +81,7 @@ class AuthEventHandler {
     });
   }
 }
-
+console.log("FRONTEND_URL:", process.env.FRONTEND_URL);
 const authEventHandler = new AuthEventHandler();
 
 export default authEventHandler;

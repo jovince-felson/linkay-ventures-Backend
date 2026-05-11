@@ -174,14 +174,6 @@ export const login = async (req, res, next) => {
       );
     }
 
-    // if (user.status !== "ACCEPTED") {
-    //   throw new AppError(
-    //     "Your account is not accepted. Contact support.",
-    //     403,
-    //     "AUTH_007",
-    //   );
-    // }
-
     if (((user.status !== "ACTIVE"&&user.isUser)||(user.status !== "ACTIVE"&&user.isSuperAdmin)) || (user.status !== "ACCEPTED"&& user.is_museum_user === true)) {
       throw new AppError(
         "Your account is not accepted. Contact support.",

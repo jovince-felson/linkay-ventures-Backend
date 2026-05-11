@@ -146,11 +146,13 @@ services:
       - backend
       - egress
     restart: unless-stopped
+    read_only: true
     cap_drop:
       - ALL
     security_opt:
       - no-new-privileges:true
 
+ 
   notification-service:
     container_name: notification-service
     build:
@@ -201,27 +203,26 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  # file-service:
-  #   container_name: file-service
-  #   build:
-  #     context: ./services/file-service
-  #     dockerfile: Dockerfile
-  #   env_file:
-  #     - ./services/file-service/.env
-  #   volumes:
-  #     - file_logs:/app/logs
-  #   tmpfs:
-  #     - /tmp
-  #   depends_on:
-  #     kafka:
-  #       condition: service_healthy
-  #     mysql:
-  #       condition: service_healthy
-  #   networks:
-  #     - backend
-  #     - egress
-  #   restart: unless-stopped
-  #   cap_drop:
-  #     - ALL
-  #   security_opt:
-  #     - no-new-privileges:true
+  ekyc-service:
+    container_name: ekyc-service
+    build:
+      context: ./services/ekyc-service
+      dockerfile: Dockerfile
+    env_file:
+      - ./services/ekyc-service/.env
+    volumes:
+      - ekyc_logs:/app/logs
+    tmpfs:
+      - /tmp
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend
+      - egress
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
