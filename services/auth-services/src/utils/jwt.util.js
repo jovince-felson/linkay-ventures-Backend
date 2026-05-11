@@ -25,5 +25,7 @@ export const buildAccessPayload = (user) => ({
   userId: user.id,
   email: user.email,
   role: user.role,
+  firstName: user.firstName,
+  lastName: user.lastName,
   walletAddress: user.walletAddress || null,
 });
