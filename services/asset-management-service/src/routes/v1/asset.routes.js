@@ -1,10 +1,11 @@
 import { Router } from 'express';
-import { authenticate }                       from '../../middlewares/auth.middleware.js';
-import { requireMuseumAdmin, requireAnyAdmin } from '../../middlewares/rbac.middleware.js';
-import { validate }                           from '../../middlewares/validate.middleware.js';
-import { asyncWrapper }                       from '../../utils/asyncWrapper.js';
+import { authenticate }                                     from '../../middlewares/auth.middleware.js';
+import { requireMuseumAdmin, requireAnyAdmin, requireInvestor } from '../../middlewares/rbac.middleware.js';
+import { validate }                                         from '../../middlewares/validate.middleware.js';
+import { asyncWrapper }                                     from '../../utils/asyncWrapper.js';
 import {
   listAssets,
+  listLiveAssets,
   createAsset,
   getAsset,
   updateAsset,
@@ -25,11 +26,19 @@ import { ownershipSplitSchema, tokenizeSchema } from '../../validators/ownership
 
 const router = Router();
 
-// GET    /api/v1/assets/list-all
+// GET  /api/v1/assets/list-all  — Museum Admin sees own assets, SUPER_ADMIN sees all
 router.get('/list-all',
   authenticate,
   validate(assetQuerySchema, 'query'),
   asyncWrapper(listAssets),
+);
+
+// GET  /api/v1/assets/marketplace  — Investor sees all LIVE assets across all museums
+router.get('/marketplace',
+  authenticate,
+  requireInvestor,
+  validate(assetQuerySchema, 'query'),
+  asyncWrapper(listLiveAssets),
 );
 
 // POST   /api/v1/assets/create

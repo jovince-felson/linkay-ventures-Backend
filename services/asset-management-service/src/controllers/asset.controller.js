@@ -26,15 +26,47 @@ export async function listAssets(req, res) {
   const order = buildSortOrder(req.query, ['title', 'status', 'created_at', 'published_at']);
 
   const where = {};
-  if (status)    where.status    = status;
   if (assetType) where.assetType = assetType;
   if (search)    where.title     = { [Op.like]: `%${search}%` };
 
   if (req.user.role === 'MUSEUM_ADMIN') {
+    // Museum admin sees only their own assets (any status)
     where.museumId = req.user.museumId || req.user.userId;
-  } else if (queryMuseumId) {
-    where.museumId = queryMuseumId;
+    if (status) where.status = status;
+  } else if (req.user.role === 'INVESTOR') {
+    // Investor sees only LIVE assets from all museums
+    where.status = 'LIVE';
+    if (queryMuseumId) where.museumId = queryMuseumId;
+  } else {
+    // SUPER_ADMIN sees all assets, optional filters
+    if (status)        where.status   = status;
+    if (queryMuseumId) where.museumId = queryMuseumId;
   }
+
+  const { count, rows } = await Asset.findAndCountAll({
+    where,
+    limit,
+    offset,
+    order,
+    include: [
+      { model: AssetOwnership,    as: 'ownershipSplit', paranoid: false },
+      { model: AssetTokenization, as: 'tokenization',   required: false, paranoid: false },
+    ],
+  });
+
+  return sendPaginated(res, rows, buildPaginationMeta(count, page, limit));
+}
+
+// ── GET /assets/marketplace (INVESTOR) ────────────────────────────────────────
+export async function listLiveAssets(req, res) {
+  const { page, limit, offset } = buildPagination(req.query);
+  const { assetType, search, museumId: queryMuseumId } = req.query;
+  const order = buildSortOrder(req.query, ['title', 'created_at', 'published_at']);
+
+  const where = { status: 'LIVE' };
+  if (assetType)     where.assetType = assetType;
+  if (search)        where.title     = { [Op.like]: `%${search}%` };
+  if (queryMuseumId) where.museumId  = queryMuseumId;
 
   const { count, rows } = await Asset.findAndCountAll({
     where,
