@@ -40,7 +40,7 @@ const User = sequelize.define('User', {
   status: {
     type: DataTypes.ENUM('PENDING_VERIFICATION', 'ACTIVE', 'SUSPENDED', 'DEACTIVATED', 'ACCEPTED', 'REJECTED'),
     allowNull: false,
-    defaultValue: 'PENDING_VERIFICATION',
+    defaultValue: 'ACCEPTED',
   },
   walletAddress: {
     type: DataTypes.STRING(42),

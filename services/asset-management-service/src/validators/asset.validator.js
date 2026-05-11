@@ -1,0 +1,58 @@
+import Joi from 'joi';
+
+const dynamicFieldSchema = Joi.object({
+  id:           Joi.string().uuid().optional(),
+  fieldKey:     Joi.string().max(100).required(),
+  fieldLabel:   Joi.string().max(200).required(),
+  fieldType:    Joi.string()
+                   .valid('text', 'textarea', 'number', 'dropdown', 'multi_select', 'date', 'checkbox', 'repeatable')
+                   .required(),
+  fieldOptions: Joi.alternatives().try(
+    Joi.array().items(
+      Joi.object({
+        label: Joi.string().optional(),
+        value: Joi.alternatives().try(Joi.string(), Joi.number(), Joi.boolean()).allow(null).optional(),
+      })
+    ),
+    Joi.valid(null),
+  ).optional(),
+  fieldValue:  Joi.alternatives()
+                  .try(Joi.string(), Joi.number(), Joi.boolean(), Joi.array())
+                  .allow(null)
+                  .optional(),
+  fieldOrder:  Joi.number().integer().min(0).default(0),
+  isRequired:  Joi.boolean().default(false),
+  parentId:    Joi.string().uuid().allow(null).optional(),
+}).options({ allowUnknown: false });
+
+export const createAssetSchema = Joi.object({
+  title:         Joi.string().min(3).max(500).required(),
+  description:   Joi.string().max(10000).allow('', null).optional(),
+  assetType:     Joi.string().valid('COLLECTIBLE', 'REAL_ESTATE').required(),
+  dynamicFields: Joi.array().items(dynamicFieldSchema).optional().default([]),
+});
+
+export const updateAssetSchema = Joi.object({
+  title:         Joi.string().min(3).max(500).optional(),
+  description:   Joi.string().max(10000).allow('', null).optional(),
+  dynamicFields: Joi.array().items(dynamicFieldSchema).optional(),
+});
+
+export const upsertDynamicFieldsSchema = Joi.object({
+  fields: Joi.array().items(dynamicFieldSchema).min(1).required(),
+});
+
+export const patchStatusSchema = Joi.object({
+  status: Joi.string().valid('DRAFT', 'REVIEW', 'LIVE', 'ARCHIVED').required(),
+});
+
+export const assetQuerySchema = Joi.object({
+  page:      Joi.number().integer().min(1).default(1),
+  limit:     Joi.number().integer().min(1).max(100).default(10),
+  status:    Joi.string().valid('DRAFT', 'REVIEW', 'LIVE', 'ARCHIVED').optional(),
+  assetType: Joi.string().valid('COLLECTIBLE', 'REAL_ESTATE').optional(),
+  museumId:  Joi.number().integer().optional(),
+  search:    Joi.string().max(200).optional(),
+  sortBy:    Joi.string().valid('title', 'status', 'created_at', 'published_at').default('created_at'),
+  sortDir:   Joi.string().valid('ASC', 'DESC').default('DESC'),
+});

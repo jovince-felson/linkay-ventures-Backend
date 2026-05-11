@@ -51,7 +51,7 @@ export const register = async (req, res, next) => {
       lastName,
       countryOfResidence: countryOfResidence.toUpperCase(),
       role: role?.toUpperCase(),
-      status: "PENDING_VERIFICATION",
+      status: "ACCEPTED",
       emailVerified: false,
       emailVerificationToken: emailToken,
       is_super_admin: isSuperAdmin,
@@ -174,7 +174,15 @@ export const login = async (req, res, next) => {
       );
     }
 
-    if (user.status !== "ACCEPTED") {
+    // if (user.status !== "ACCEPTED") {
+    //   throw new AppError(
+    //     "Your account is not accepted. Contact support.",
+    //     403,
+    //     "AUTH_007",
+    //   );
+    // }
+
+    if (((user.status !== "ACTIVE"&&user.isUser)||(user.status !== "ACTIVE"&&user.isSuperAdmin)) || (user.status !== "ACCEPTED"&& user.is_museum_user === true)) {
       throw new AppError(
         "Your account is not accepted. Contact support.",
         403,
