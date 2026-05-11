@@ -100,7 +100,6 @@ import express from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { SERVICESV1 } from "../../config/services.js";
 import { verifyToken } from "../../middlewares/auth.js";
-import { GetLogs } from "../../controllers/log.controller.js";
 
 const router = express.Router();
 
@@ -127,10 +126,10 @@ router.use(
   }),
 );
 
-// Notification routes — JWT required
+// ── Notification routes ────────────────────────────────────────────────────
+router.use("/api/v1/notification", verifyToken);
 router.use(
   "/api/v1/notification",
-  verifyToken,
   createProxyMiddleware({
     target: SERVICESV1.NOTIFICATION_SERVICE_URL,
     changeOrigin: true,
@@ -154,10 +153,10 @@ router.use(
   }),
 );
 
-// eKYC routes — JWT required
+// ── eKYC routes ───────────────────────────────────────────────────────────
+router.use("/api/v1/ekyc", verifyToken);
 router.use(
   "/api/v1/ekyc",
-  verifyToken,
   createProxyMiddleware({
     target: SERVICESV1.EKYC_SERVICE_URL,
     changeOrigin: true,
@@ -168,24 +167,39 @@ router.use(
   }),
 );
 
-// File upload routes — JWT required
+// ── File Service routes ───────────────────────────────────────────────────
+// Gateway path /api/v1/file → service mounts at /api/v1/files (plural)
+router.use("/api/v1/file", verifyToken);
 router.use(
   "/api/v1/file",
-  verifyToken,
   createProxyMiddleware({
     target: SERVICESV1.FILE_UPLOAD_SERVICE_URL,
     changeOrigin: true,
     proxyTimeout: 60000,
     timeout: 60000,
-    pathRewrite: (path) => `/api/v1/file${path}`,
-    on: { proxyRes: injectCors },
+    pathRewrite: (path) => `/api/v1/files${path}`,
+    on: { error: onProxyError },
   }),
 );
 
-// Admin routes — JWT required
+// ── Asset Management routes ───────────────────────────────────────────────
+router.use("/api/v1/assets", verifyToken);
+router.use(
+  "/api/v1/assets",
+  createProxyMiddleware({
+    target: SERVICESV1.ASSET_MANAGEMENT_SERVICE_URL,
+    changeOrigin: true,
+    proxyTimeout: 60000,
+    timeout: 60000,
+    pathRewrite: (path) => `/api/v1/assets${path}`,
+    on: { error: onProxyError },
+  }),
+);
+
+// ── Admin routes (proxied to auth-service) ────────────────────────────────
+router.use("/api/v1/admin", verifyToken);
 router.use(
   "/api/v1/admin",
-  verifyToken,
   createProxyMiddleware({
     target: SERVICESV1.AUTH_SERVICE_URL,
     changeOrigin: true,

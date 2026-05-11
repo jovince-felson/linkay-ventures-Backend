@@ -51,7 +51,7 @@ export const register = async (req, res, next) => {
       lastName,
       countryOfResidence: countryOfResidence.toUpperCase(),
       role: role?.toUpperCase(),
-      status: "PENDING_VERIFICATION",
+      status: "ACCEPTED",
       emailVerified: false,
       emailVerificationToken: emailToken,
       is_super_admin: isSuperAdmin,

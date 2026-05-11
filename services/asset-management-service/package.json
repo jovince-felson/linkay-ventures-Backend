@@ -1,0 +1,31 @@
+{
+  "name": "asset-management-service",
+  "version": "1.0.0",
+  "description": "Asset Management Microservice — Linkay RWA Tokenization Platform",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "db:migrate": "npx sequelize-cli db:migrate",
+    "db:migrate:undo": "npx sequelize-cli db:migrate:undo:all",
+    "db:seed": "npx sequelize-cli db:seed:all",
+    "db:init": "node scripts/db_init.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1045.0",
+    "axios": "^1.16.0",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.1",
+    "joi": "^17.13.3",
+    "jsonwebtoken": "^9.0.3",
+    "linkay-shared-utils": "^1.1.1",
+    "mysql2": "^3.22.3",
+    "sequelize": "^6.37.8",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4",
+    "sequelize-cli": "^6.6.2"
+  }
+}
