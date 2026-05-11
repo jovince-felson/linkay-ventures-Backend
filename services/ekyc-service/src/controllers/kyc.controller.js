@@ -31,8 +31,11 @@ const callInternal = async (baseUrl, path, body) => {
 // Gateway injects x-user-id, x-user-email from the verified JWT.
 export const initKyc = async (req, res, next) => {
   try {
-    const userId = req.headers['x-user-id'];
-    const userEmail = req.headers['x-user-email'];
+   const userId = req.headers['x-user-id'];
+   const userEmail = req.headers['x-user-email'];
+   const firstName = req.headers['x-user-first-name'];
+   const lastName = req.headers['x-user-last-name'];
+
 
     if (!userId) throw new AppError('User identity missing from request headers.', 401);
 
@@ -47,6 +50,8 @@ export const initKyc = async (req, res, next) => {
         externalUserId: userId,
         email: userEmail,
         country: req.headers['x-user-country'] ,
+        firstName,
+        lastName
       });
 
       record = await KycApplicant.create({

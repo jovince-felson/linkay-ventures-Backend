@@ -37,13 +37,20 @@ const sumsubRequest = async (method, path, body = null) => {
   return json;
 };
 
-export const createApplicant = async ({ externalUserId, email, country }) => {
+export const createApplicant = async ({ externalUserId, email, country, firstName, lastName }) => {
   const path = `/resources/applicants?levelName=${encodeURIComponent(sumsubConfig.levelName)}`;
   const body = { externalUserId, email };
-  if (country) body.fixedInfo = { country };
+
+  const fixedInfo = {};
+  if (country) fixedInfo.country = country;
+  if (firstName) fixedInfo.firstName = firstName;
+  if (lastName) fixedInfo.lastName = lastName;
+  if (Object.keys(fixedInfo).length) body.fixedInfo = fixedInfo;
+
   const data = await sumsubRequest('POST', path, body);
   return data.id;
 };
+
 
 export const generateSDKToken = async (externalUserId) => {
   const path = `/resources/accessTokens?userId=${encodeURIComponent(externalUserId)}&levelName=${encodeURIComponent(sumsubConfig.levelName)}&ttlInSecs=3600`;
