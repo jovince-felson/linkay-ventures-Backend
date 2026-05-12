@@ -57,6 +57,8 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: stable
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build for Slither
         run: forge build
@@ -67,4 +69,4 @@ jobs:
           target: blockchain/
           slither-args: --exclude-dependencies --filter-paths "lib/"
           fail-on: high
-          ignore-compile: false
+          ignore-compile: true
