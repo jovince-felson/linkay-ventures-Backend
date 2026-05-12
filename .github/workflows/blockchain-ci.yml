@@ -32,10 +32,12 @@ jobs:
       - name: Run tests
         run: forge test -v
 
-      - name: Coverage (≥80% required)
+      - name: Install lcov
+        run: sudo apt-get install -y lcov
+
+      - name: Coverage (>=80% required)
         run: |
           forge coverage --report lcov
-          # Fail if line coverage drops below 80%
           COVERAGE=$(lcov --summary lcov.info 2>&1 | grep "lines" | grep -o '[0-9.]*%' | head -1 | tr -d '%')
           echo "Line coverage: ${COVERAGE}%"
           awk -v cov="$COVERAGE" 'BEGIN { if (cov+0 < 80) { print "Coverage " cov "% below 80% threshold"; exit 1 } }'
@@ -63,5 +65,6 @@ jobs:
         uses: crytic/slither-action@v0.4.0
         with:
           target: blockchain/
-          slither-args: --exclude-dependencies --filter-paths "lib/" --fail-on high
+          slither-args: --exclude-dependencies --filter-paths "lib/"
+          fail-on: high
           ignore-compile: false
