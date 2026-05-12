@@ -29,7 +29,7 @@ import {
 const router = Router();
 
 // Apply general rate limiter to all auth routes
-router.use(generalRateLimiter);
+// router.use(generalRateLimiter);
 
 // --- Public routes ---
 router.post('/register', registerValidator, validate, register);

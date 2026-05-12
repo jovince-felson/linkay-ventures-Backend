@@ -68,12 +68,16 @@ export const generateSDKToken = async (externalUserId) => {
   return data.token;
 };
 
-export const verifyWebhookSignature = (rawBody, ts, receivedSig) => {
+export const verifyWebhookSignature = (rawBody, receivedSig) => {
   const secret = sumsubConfig.webhookSecret || sumsubConfig.secretKey;
   const expected = crypto
     .createHmac('sha256', secret)
-    .update(ts + rawBody)
+    .update(rawBody)
     .digest('hex');
+  logger.debug(`[Webhook Debug] secret=${secret}`);
+  logger.debug(`[Webhook Debug] rawBody length=${rawBody?.length}`);
+  logger.debug(`[Webhook Debug] expected=${expected}`);
+  logger.debug(`[Webhook Debug] received=${receivedSig}`);
   return crypto.timingSafeEqual(
     Buffer.from(expected, 'hex'),
     Buffer.from(receivedSig, 'hex'),

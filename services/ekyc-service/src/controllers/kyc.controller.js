@@ -130,6 +130,8 @@ export const kycWebhook = async (req, res, next) => {
     let newStatus;
     if (reviewAnswer === 'GREEN') {
       newStatus = 'APPROVED';
+    } else if (reviewAnswer === 'YELLOW') {
+      newStatus = 'PENDING';
     } else if (reviewAnswer === 'RED' && reviewRejectType === 'RETRY') {
       newStatus = 'RESUBMIT_REQUIRED';
     } else {
@@ -155,6 +157,12 @@ export const kycWebhook = async (req, res, next) => {
 
     await callInternal(NOTIFICATION_URL, `/internal${emailPath}`, {
       email: record.userEmail,
+    });
+
+    // Notify user via push notification
+    await callInternal(NOTIFICATION_URL, '/internal/push/kyc-status', {
+      userId: externalUserId,
+      kycStatus: newStatus,
     });
 
     return res.status(200).json({ received: true });

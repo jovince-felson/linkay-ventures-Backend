@@ -1,5 +1,39 @@
 import nodemailer from "nodemailer";
 import MailConfigs from "../models/mailconfig.model.js";
+import FCMTokens from "../models/fcmtoken.model.js";
+import { sendPushNotification } from "../helpers/firebase.helper.js";
+
+const KYC_PUSH = {
+  APPROVED: { title: 'Identity Verified', body: 'Your identity verification is approved. You can now invest.' },
+  REJECTED: { title: 'Verification Failed', body: 'Your identity verification was unsuccessful. Please contact support.' },
+  RESUBMIT_REQUIRED: { title: 'Action Required', body: 'Additional documents are needed. Please resubmit your KYC.' },
+  PENDING: { title: 'Under Review', body: 'Your verification is being reviewed by our team.' },
+};
+
+export const sendKycPushNotification = async (req, res) => {
+  const { userId, kycStatus } = req.body;
+  if (!userId || !kycStatus) {
+    return res.status(400).json({ success: false, message: 'userId and kycStatus are required' });
+  }
+
+  const payload = KYC_PUSH[kycStatus];
+  if (!payload) {
+    return res.status(400).json({ success: false, message: `Unknown kycStatus: ${kycStatus}` });
+  }
+
+  try {
+    const tokens = await FCMTokens.findAll({ where: { user_id: userId } });
+    if (!tokens.length) {
+      return res.json({ success: true, message: 'No FCM tokens registered for user' });
+    }
+
+    await Promise.all(tokens.map(t => sendPushNotification(t.fcm_key, payload.title, payload.body, { kycStatus })));
+    return res.json({ success: true, message: 'Push notifications sent' });
+  } catch (err) {
+    console.error('sendKycPushNotification error:', err.message);
+    return res.status(500).json({ success: false, message: 'Failed to send push notification' });
+  }
+};
 
 const getTransporter = async () => {
   try {
