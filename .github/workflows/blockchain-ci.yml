@@ -69,4 +69,4 @@ jobs:
           target: blockchain/
           slither-args: --exclude-dependencies --filter-paths "lib/"
           fail-on: high
-          ignore-compile: true
+          ignore-compile: false
