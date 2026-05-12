@@ -37,15 +37,10 @@ const sumsubRequest = async (method, path, body = null) => {
   return json;
 };
 
-export const createApplicant = async ({ externalUserId, email, country, firstName, lastName }) => {
+export const createApplicant = async ({ externalUserId, email, firstName, lastName }) => {
   const path = `/resources/applicants?levelName=${encodeURIComponent(sumsubConfig.levelName)}`;
   const body = { externalUserId, email };
 
-  // fixedInfo locks data — only lock country, NOT name
-  // Name must come from the verified document, not registration data
-  if (country) body.fixedInfo = { country };
-
-  // Pass registration name as a hint only (suggestive, overridable by document)
   const info = {};
   if (firstName) info.firstName = firstName;
   if (lastName) info.lastName = lastName;

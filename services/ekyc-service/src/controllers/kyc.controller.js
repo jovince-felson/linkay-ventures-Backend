@@ -49,9 +49,8 @@ export const initKyc = async (req, res, next) => {
       const applicantId = await createApplicant({
         externalUserId: userId,
         email: userEmail,
-        country: req.headers['x-user-country'] ,
         firstName,
-        lastName
+        lastName,
       });
 
       record = await KycApplicant.create({
