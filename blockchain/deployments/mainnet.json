@@ -1,0 +1,12 @@
+{
+  "ClaimTopicsRegistry": "",
+  "TrustedIssuersRegistry": "",
+  "IdentityRegistry": "",
+  "ComplianceModule": "",
+  "AssetNFTFactory": "",
+  "FractionalTokenFactory": "",
+  "EscrowContract": "",
+  "AuctionFactory": "",
+  "TimelockController": "",
+  "GnosisSafe": ""
+}
