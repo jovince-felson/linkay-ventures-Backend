@@ -82,3 +82,11 @@ export const resetPasswordValidator = [
     .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])/)
     .withMessage('Password must be at least 8 characters with uppercase, number, and special character.'),
 ];
+
+export const updateWalletValidator = [
+  body('walletAddress')
+    .isLength({ min: 42, max: 42 })
+    .withMessage('Wallet address must be exactly 42 characters.')
+    .matches(/^0x[0-9a-fA-F]{40}$/)
+    .withMessage('Invalid wallet address format.'),
+];
