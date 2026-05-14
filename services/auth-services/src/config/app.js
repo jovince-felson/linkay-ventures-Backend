@@ -8,6 +8,7 @@ import morgan from 'morgan';
 import authRoutes from '../routes/auth.routes.js';
 import adminRoutes from '../routes/admin.routes.js';
 import internalKycRoutes from '../routes/internal.kyc.routes.js';
+import userRoutes from '../routes/user.routes.js';
 import { errorHandler } from '../middlewares/error.middleware.js';
 import { notFound } from '../middlewares/notFound.middleware.js';
 import logger from '../utils/logger.js';
@@ -18,7 +19,10 @@ const app = express();
 app.use(helmet());
 
 // CORS
-
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+  credentials: true,
+}));
 
 // Body parsers
 app.use(express.json({ limit: '10kb' }));
@@ -40,6 +44,7 @@ app.get('/health', (_req, res) => {
 // Routes
 app.use('/auth', authRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/users', userRoutes);
 app.use('/internal', internalKycRoutes);
 
 // 404 handler
