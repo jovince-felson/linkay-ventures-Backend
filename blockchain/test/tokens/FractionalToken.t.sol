@@ -16,12 +16,13 @@ contract FractionalTokenTest is Test {
     ComplianceModule       internal cm;
     FractionalToken        internal ft;
 
-    address internal admin     = makeAddr("admin");
-    address internal issuer    = makeAddr("issuer");
-    address internal treasury  = makeAddr("treasury");
-    address internal investor1 = makeAddr("investor1");
-    address internal investor2 = makeAddr("investor2");
-    address internal agent     = makeAddr("agent");
+    address internal admin      = makeAddr("admin");
+    address internal issuer     = makeAddr("issuer");
+    address internal treasury   = makeAddr("treasury");
+    address internal assetOwner = makeAddr("assetOwner");
+    address internal investor1  = makeAddr("investor1");
+    address internal investor2  = makeAddr("investor2");
+    address internal agent      = makeAddr("agent");
 
     bytes32 internal ASSET_ID = keccak256("asset-001");
     uint256 internal SUPPLY   = 1_000_000e18;
@@ -74,7 +75,7 @@ contract FractionalTokenTest is Test {
             )
         ))));
 
-        ft.mintInitialSupply(treasury, SUPPLY);
+        ft.mintInitialSupply(treasury, address(0), SUPPLY, 0, 10000);
         vm.stopPrank();
 
         _verifyWallet(treasury);
@@ -122,28 +123,86 @@ contract FractionalTokenTest is Test {
     function test_MintInitialSupply_AlreadyMinted_Reverts() public {
         vm.prank(admin);
         vm.expectRevert("FT: supply already minted");
-        ft.mintInitialSupply(treasury, SUPPLY);
+        ft.mintInitialSupply(treasury, address(0), SUPPLY, 0, 10000);
     }
 
     function test_MintInitialSupply_ZeroTreasury_Reverts() public {
         FractionalToken ft2 = _freshToken();
         vm.prank(admin);
         vm.expectRevert("FT: zero treasury");
-        ft2.mintInitialSupply(address(0), SUPPLY);
+        ft2.mintInitialSupply(address(0), address(0), SUPPLY, 0, 10000);
     }
 
-    function test_MintInitialSupply_WrongAmount_Reverts() public {
+    function test_MintInitialSupply_AmountsMismatch_Reverts() public {
         FractionalToken ft2 = _freshToken();
         vm.prank(admin);
-        vm.expectRevert("FT: amount must equal supply cap");
-        ft2.mintInitialSupply(treasury, SUPPLY - 1);
+        vm.expectRevert("FT: amounts must equal supply cap");
+        ft2.mintInitialSupply(treasury, address(0), SUPPLY - 1, 0, 10000);
+    }
+
+    function test_MintInitialSupply_ZeroPublicAmount_Reverts() public {
+        FractionalToken ft2 = _freshToken();
+        vm.prank(admin);
+        vm.expectRevert("FT: zero public amount");
+        ft2.mintInitialSupply(treasury, assetOwner, 0, SUPPLY, 10000);
+    }
+
+    function test_MintInitialSupply_InvalidBps_Zero_Reverts() public {
+        FractionalToken ft2 = _freshToken();
+        vm.prank(admin);
+        vm.expectRevert("FT: invalid tokenize bps");
+        ft2.mintInitialSupply(treasury, address(0), SUPPLY, 0, 0);
+    }
+
+    function test_MintInitialSupply_InvalidBps_Over10000_Reverts() public {
+        FractionalToken ft2 = _freshToken();
+        vm.prank(admin);
+        vm.expectRevert("FT: invalid tokenize bps");
+        ft2.mintInitialSupply(treasury, address(0), SUPPLY, 0, 10001);
+    }
+
+    function test_MintInitialSupply_ZeroAssetOwner_WithRetained_Reverts() public {
+        FractionalToken ft2 = _freshToken();
+        uint256 pub = (SUPPLY * 4000) / 10000;
+        uint256 ret = SUPPLY - pub;
+        vm.prank(admin);
+        vm.expectRevert("FT: zero asset owner");
+        ft2.mintInitialSupply(treasury, address(0), pub, ret, 4000);
     }
 
     function test_MintInitialSupply_OnlyOwner_Reverts() public {
         FractionalToken ft2 = _freshToken();
         vm.prank(makeAddr("stranger"));
         vm.expectRevert();
-        ft2.mintInitialSupply(treasury, SUPPLY);
+        ft2.mintInitialSupply(treasury, address(0), SUPPLY, 0, 10000);
+    }
+
+    function test_MintInitialSupply_PartialTokenization_40Percent() public {
+        FractionalToken ft2 = _freshToken();
+        uint256 pub = (SUPPLY * 4000) / 10000;   // 40%
+        uint256 ret = SUPPLY - pub;               // 60%
+        vm.prank(admin);
+        ft2.mintInitialSupply(treasury, assetOwner, pub, ret, 4000);
+
+        assertEq(ft2.balanceOf(treasury),   pub);
+        assertEq(ft2.balanceOf(assetOwner), ret);
+        assertEq(ft2.totalSupply(),         SUPPLY);
+        assertEq(ft2.tokenizeBps(),         4000);
+        assertTrue(ft2.supplyMinted());
+    }
+
+    function test_MintInitialSupply_FullTokenization_100Percent() public {
+        FractionalToken ft2 = _freshToken();
+        vm.prank(admin);
+        ft2.mintInitialSupply(treasury, address(0), SUPPLY, 0, 10000);
+
+        assertEq(ft2.balanceOf(treasury), SUPPLY);
+        assertEq(ft2.totalSupply(),       SUPPLY);
+        assertEq(ft2.tokenizeBps(),       10000);
+    }
+
+    function test_MintInitialSupply_TokenizeBps_StoredCorrectly() public view {
+        assertEq(ft.tokenizeBps(), 10000);
     }
 
     // Transfer

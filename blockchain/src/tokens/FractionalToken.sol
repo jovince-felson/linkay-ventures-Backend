@@ -30,6 +30,7 @@ contract FractionalToken is
     bytes32 public assetId;          // links back to platform asset UUID
     uint256 public totalSupplyCap;   // immutable after mint
     bool    public supplyMinted;
+    uint16  public tokenizeBps;      // basis points tokenized publicly (1-10000)
 
     IdentityRegistry public identityRegistry;
     ComplianceModule public complianceModule;
@@ -41,6 +42,7 @@ contract FractionalToken is
     mapping(address => bool) private _agents;
 
     // Events
+    event InitialSupplyMinted(address indexed treasury, address indexed assetOwner, uint256 publicAmount, uint256 retainedAmount, uint16 tokenizeBps);
     event TokensFrozen(address indexed wallet, uint256 amount, address indexed agent);
     event TokensUnfrozen(address indexed wallet, uint256 amount, address indexed agent);
     event ForcedTransfer(address indexed from, address indexed to, uint256 amount, address indexed agent);
@@ -88,20 +90,36 @@ contract FractionalToken is
     //  Mint (one-time, called by factory in job step 5) 
 
     /**
-     * @notice Mints the full initial supply to the treasury. Called once at deployment.
+     * @notice Mints the initial supply split between treasury (public sale) and asset owner (retained stake).
+     * @param treasuryWallet    Receives the publicly tokenized portion (goes to marketplace).
+     * @param assetOwnerWallet  Receives the retained portion. May be address(0) if tokenizeBps == 10000.
+     * @param publicAmount      Tokens for public sale = totalSupplyCap * tokenizeBps / 10000.
+     * @param retainedAmount    Tokens retained by owner = totalSupplyCap - publicAmount.
+     * @param _tokenizeBps      Basis points tokenized (1-10000). Stored on-chain for transparency.
      */
-    function mintInitialSupply(address treasuryWallet, uint256 amount)
-        external
-        onlyOwner
-        whenNotPaused
-        nonReentrant
-    {
+    function mintInitialSupply(
+        address treasuryWallet,
+        address assetOwnerWallet,
+        uint256 publicAmount,
+        uint256 retainedAmount,
+        uint16  _tokenizeBps
+    ) external onlyOwner whenNotPaused nonReentrant {
         require(!supplyMinted, "FT: supply already minted");
         require(treasuryWallet != address(0), "FT: zero treasury");
-        require(amount == totalSupplyCap, "FT: amount must equal supply cap");
+        require(publicAmount > 0, "FT: zero public amount");
+        require(publicAmount + retainedAmount == totalSupplyCap, "FT: amounts must equal supply cap");
+        require(_tokenizeBps >= 1 && _tokenizeBps <= 10000, "FT: invalid tokenize bps");
+        if (retainedAmount > 0) {
+            require(assetOwnerWallet != address(0), "FT: zero asset owner");
+        }
 
+        tokenizeBps = _tokenizeBps;
         supplyMinted = true;
-        _mint(treasuryWallet, amount);
+        _mint(treasuryWallet, publicAmount);
+        if (retainedAmount > 0) {
+            _mint(assetOwnerWallet, retainedAmount);
+        }
+        emit InitialSupplyMinted(treasuryWallet, assetOwnerWallet, publicAmount, retainedAmount, _tokenizeBps);
     }
 
     //  ERC-3643 compliant transfer 

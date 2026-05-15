@@ -18,9 +18,10 @@ contract FactoriesTest is Test {
     AssetNFTFactory        internal nftFactory;
     FractionalTokenFactory internal ftFactory;
 
-    address internal admin    = makeAddr("admin");
-    address internal treasury = makeAddr("treasury");
-    address internal user     = makeAddr("user");
+    address internal admin      = makeAddr("admin");
+    address internal treasury   = makeAddr("treasury");
+    address internal assetOwner = makeAddr("assetOwner");
+    address internal user       = makeAddr("user");
 
     bytes32 internal ASSET1  = keccak256("asset-001");
     bytes32 internal ASSET2  = keccak256("asset-002");
@@ -184,23 +185,42 @@ contract FactoriesTest is Test {
             "LBF001",
             SUPPLY,
             ASSET1,
-            treasury
+            treasury,
+            address(0),
+            10000
         );
 
         assertTrue(tokenContract != address(0));
         assertEq(ftFactory.deployedToken(ASSET1), tokenContract);
 
         FractionalToken ft = FractionalToken(payable(tokenContract));
-        assertEq(ft.totalSupply(), SUPPLY);
+        assertEq(ft.totalSupply(),       SUPPLY);
         assertEq(ft.balanceOf(treasury), SUPPLY);
-        assertEq(ft.assetId(), ASSET1);
-        assertEq(ft.owner(), admin); // ownership transferred to factory owner
+        assertEq(ft.assetId(),           ASSET1);
+        assertEq(ft.tokenizeBps(),       10000);
+        assertEq(ft.owner(),             admin);
+    }
+
+    function test_FTFAC_DeployFractionalToken_PartialTokenization() public {
+        vm.prank(admin);
+        address tokenContract = ftFactory.deployFractionalToken(
+            "Token1", "TK1", SUPPLY, ASSET1, treasury, assetOwner, 4000
+        );
+
+        FractionalToken ft = FractionalToken(payable(tokenContract));
+        uint256 expectedPublic   = (SUPPLY * 4000) / 10000;
+        uint256 expectedRetained = SUPPLY - expectedPublic;
+
+        assertEq(ft.balanceOf(treasury),   expectedPublic);
+        assertEq(ft.balanceOf(assetOwner), expectedRetained);
+        assertEq(ft.totalSupply(),         SUPPLY);
+        assertEq(ft.tokenizeBps(),         4000);
     }
 
     function test_FTFAC_Deploy_MultipleTimes() public {
         vm.startPrank(admin);
-        ftFactory.deployFractionalToken("Token1", "TK1", SUPPLY, ASSET1, treasury);
-        ftFactory.deployFractionalToken("Token2", "TK2", SUPPLY, ASSET2, treasury);
+        ftFactory.deployFractionalToken("Token1", "TK1", SUPPLY, ASSET1, treasury, address(0), 10000);
+        ftFactory.deployFractionalToken("Token2", "TK2", SUPPLY, ASSET2, treasury, address(0), 10000);
         vm.stopPrank();
 
         assertEq(ftFactory.getAllDeployments().length, 2);
@@ -208,46 +228,58 @@ contract FactoriesTest is Test {
 
     function test_FTFAC_Deploy_DuplicateAssetId_Reverts() public {
         vm.startPrank(admin);
-        ftFactory.deployFractionalToken("Token1", "TK1", SUPPLY, ASSET1, treasury);
+        ftFactory.deployFractionalToken("Token1", "TK1", SUPPLY, ASSET1, treasury, address(0), 10000);
         vm.expectRevert("FTFAC: token already deployed");
-        ftFactory.deployFractionalToken("Token1", "TK1", SUPPLY, ASSET1, treasury);
+        ftFactory.deployFractionalToken("Token1", "TK1", SUPPLY, ASSET1, treasury, address(0), 10000);
         vm.stopPrank();
     }
 
     function test_FTFAC_Deploy_EmptyName_Reverts() public {
         vm.prank(admin);
         vm.expectRevert("FTFAC: empty name");
-        ftFactory.deployFractionalToken("", "TK1", SUPPLY, ASSET1, treasury);
+        ftFactory.deployFractionalToken("", "TK1", SUPPLY, ASSET1, treasury, address(0), 10000);
     }
 
     function test_FTFAC_Deploy_EmptySymbol_Reverts() public {
         vm.prank(admin);
         vm.expectRevert("FTFAC: empty symbol");
-        ftFactory.deployFractionalToken("Token1", "", SUPPLY, ASSET1, treasury);
+        ftFactory.deployFractionalToken("Token1", "", SUPPLY, ASSET1, treasury, address(0), 10000);
     }
 
     function test_FTFAC_Deploy_ZeroSupply_Reverts() public {
         vm.prank(admin);
         vm.expectRevert("FTFAC: zero supply");
-        ftFactory.deployFractionalToken("Token1", "TK1", 0, ASSET1, treasury);
+        ftFactory.deployFractionalToken("Token1", "TK1", 0, ASSET1, treasury, address(0), 10000);
     }
 
     function test_FTFAC_Deploy_EmptyAssetId_Reverts() public {
         vm.prank(admin);
         vm.expectRevert("FTFAC: empty assetId");
-        ftFactory.deployFractionalToken("Token1", "TK1", SUPPLY, bytes32(0), treasury);
+        ftFactory.deployFractionalToken("Token1", "TK1", SUPPLY, bytes32(0), treasury, address(0), 10000);
     }
 
     function test_FTFAC_Deploy_ZeroTreasury_Reverts() public {
         vm.prank(admin);
         vm.expectRevert("FTFAC: zero treasury");
-        ftFactory.deployFractionalToken("Token1", "TK1", SUPPLY, ASSET1, address(0));
+        ftFactory.deployFractionalToken("Token1", "TK1", SUPPLY, ASSET1, address(0), address(0), 10000);
+    }
+
+    function test_FTFAC_Deploy_InvalidBps_Reverts() public {
+        vm.prank(admin);
+        vm.expectRevert("FTFAC: invalid tokenize bps");
+        ftFactory.deployFractionalToken("Token1", "TK1", SUPPLY, ASSET1, treasury, address(0), 0);
+    }
+
+    function test_FTFAC_Deploy_ZeroAssetOwner_PartialBps_Reverts() public {
+        vm.prank(admin);
+        vm.expectRevert("FTFAC: zero asset owner");
+        ftFactory.deployFractionalToken("Token1", "TK1", SUPPLY, ASSET1, treasury, address(0), 5000);
     }
 
     function test_FTFAC_Deploy_OnlyOwner_Reverts() public {
         vm.prank(user);
         vm.expectRevert();
-        ftFactory.deployFractionalToken("Token1", "TK1", SUPPLY, ASSET1, treasury);
+        ftFactory.deployFractionalToken("Token1", "TK1", SUPPLY, ASSET1, treasury, address(0), 10000);
     }
 
     function test_FTFAC_SetImplementation() public {
@@ -273,14 +305,14 @@ contract FactoriesTest is Test {
 
         vm.prank(admin);
         vm.expectRevert();
-        ftFactory.deployFractionalToken("Token1", "TK1", SUPPLY, ASSET1, treasury);
+        ftFactory.deployFractionalToken("Token1", "TK1", SUPPLY, ASSET1, treasury, address(0), 10000);
     }
 
     function test_FTFAC_Unpause_AllowsDeploy() public {
         vm.startPrank(admin);
         ftFactory.pause();
         ftFactory.unpause();
-        address tokenContract = ftFactory.deployFractionalToken("Token1", "TK1", SUPPLY, ASSET1, treasury);
+        address tokenContract = ftFactory.deployFractionalToken("Token1", "TK1", SUPPLY, ASSET1, treasury, address(0), 10000);
         vm.stopPrank();
         assertTrue(tokenContract != address(0));
     }

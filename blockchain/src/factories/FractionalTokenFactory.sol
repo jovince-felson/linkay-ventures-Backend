@@ -33,7 +33,8 @@ contract FractionalTokenFactory is
         address indexed tokenContract,
         string  name,
         string  symbol,
-        uint256 totalSupply
+        uint256 totalSupply,
+        uint16  tokenizeBps
     );
     event ImplementationUpdated(address indexed newImplementation);
     event ContractUpgraded(address indexed newImplementation);
@@ -65,18 +66,22 @@ contract FractionalTokenFactory is
 
     // Deploy
     /**
-     * @param name           Token name
-     * @param symbol         Token symbol
-     * @param totalSupply    Total token supply to mint
-     * @param assetId        keccak256(abi.encodePacked(platformUUID))
-     * @param treasuryWallet Receives the minted supply
+     * @param name             Token name
+     * @param symbol           Token symbol
+     * @param totalSupply      Total token supply to mint
+     * @param assetId          keccak256(abi.encodePacked(platformUUID))
+     * @param treasuryWallet   Receives the publicly tokenized portion (for marketplace sale)
+     * @param assetOwnerWallet Receives the retained portion. Ignored when tokenizeBps == 10000.
+     * @param tokenizeBps      Basis points to tokenize publicly (1-10000). e.g. 4000 = 40%.
      */
     function deployFractionalToken(
         string  calldata name,
         string  calldata symbol,
         uint256 totalSupply,
         bytes32 assetId,
-        address treasuryWallet
+        address treasuryWallet,
+        address assetOwnerWallet,
+        uint16  tokenizeBps
     ) external onlyOwner whenNotPaused returns (address tokenContract) {
         require(bytes(name).length   > 0,             "FTFAC: empty name");
         require(bytes(symbol).length > 0,             "FTFAC: empty symbol");
@@ -84,6 +89,13 @@ contract FractionalTokenFactory is
         require(assetId              != bytes32(0),   "FTFAC: empty assetId");
         require(treasuryWallet       != address(0),   "FTFAC: zero treasury");
         require(deployedToken[assetId] == address(0), "FTFAC: token already deployed");
+        require(tokenizeBps >= 1 && tokenizeBps <= 10000, "FTFAC: invalid tokenize bps");
+        if (tokenizeBps < 10000) {
+            require(assetOwnerWallet != address(0), "FTFAC: zero asset owner");
+        }
+
+        uint256 publicAmount   = (totalSupply * tokenizeBps) / 10000;
+        uint256 retainedAmount = totalSupply - publicAmount;
 
         bytes memory initData = abi.encodeWithSelector(
             FractionalToken.initialize.selector,
@@ -93,22 +105,26 @@ contract FractionalTokenFactory is
             assetId,
             identityRegistry,
             complianceModule,
-            address(this)   // factory owns initially; transferred to admin below
+            address(this)
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(implementation, initData);
         tokenContract = address(proxy);
 
-        // Mint the full supply to treasury (job step 5)
-        FractionalToken(payable(tokenContract)).mintInitialSupply(treasuryWallet, totalSupply);
+        FractionalToken(payable(tokenContract)).mintInitialSupply(
+            treasuryWallet,
+            assetOwnerWallet,
+            publicAmount,
+            retainedAmount,
+            tokenizeBps
+        );
 
-        // Transfer ownership of the token contract to platform admin
         FractionalToken(payable(tokenContract)).transferOwnership(owner());
 
         deployedToken[assetId] = tokenContract;
         _allDeployments.push(tokenContract);
 
-        emit FractionalTokenDeployed(assetId, tokenContract, name, symbol, totalSupply);
+        emit FractionalTokenDeployed(assetId, tokenContract, name, symbol, totalSupply, tokenizeBps);
     }
 
     // Implementation update
