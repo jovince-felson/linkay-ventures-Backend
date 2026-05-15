@@ -34,7 +34,7 @@ const router = Router();
 // --- Public routes ---
 router.post('/register', registerValidator, validate, register);
 router.get('/verify-email', verifyEmail);
-router.post('/login', loginRateLimiter, loginValidator, validate, login);
+router.post('/login', loginValidator, validate, login);
 router.post('/refresh', refreshToken);
 router.post('/forgot-password', forgotPasswordValidator, validate, forgotPassword);
 router.post('/reset-password', resetPasswordValidator, validate, resetPassword);
