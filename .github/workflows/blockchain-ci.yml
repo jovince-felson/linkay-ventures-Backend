@@ -37,7 +37,7 @@ jobs:
 
       - name: Coverage (>=80% required)
         run: |
-          forge coverage --report lcov
+          forge coverage --report lcov --ir-minimum
           COVERAGE=$(lcov --summary lcov.info 2>&1 | grep "lines" | grep -o '[0-9.]*%' | head -1 | tr -d '%')
           echo "Line coverage: ${COVERAGE}%"
           awk -v cov="$COVERAGE" 'BEGIN { if (cov+0 < 80) { print "Coverage " cov "% below 80% threshold"; exit 1 } }'

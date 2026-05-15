@@ -144,39 +144,33 @@ contract EscrowMarketplace is
         nonReentrant
     {
         Listing storage listing = _listings[listingId];
-        require(listing.active,                    "EM: listing not active");
-        require(listing.seller != msg.sender,      "EM: seller cannot buy own listing");
+        require(listing.active,               "EM: listing not active");
+        require(listing.seller != msg.sender, "EM: seller cannot buy own listing");
 
-        uint256 totalPrice      = (listing.amount * listing.pricePerToken) / 1e18;
-        uint256 fee             = (totalPrice * platformFeeBps) / 10000;
-        uint256 sellerProceeds  = totalPrice - fee;
-
-        address seller        = listing.seller;
-        address tokenContract = listing.tokenContract;
-        uint256 amount        = listing.amount;
-        address paymentToken  = listing.paymentToken;
+        uint256 totalPrice = (listing.amount * listing.pricePerToken) / 1e18;
+        uint256 fee        = (totalPrice * platformFeeBps) / 10000;
 
         listing.active = false;
-        _listedAmounts[seller][tokenContract] -= amount;
+        _listedAmounts[listing.seller][listing.tokenContract] -= listing.amount;
 
-        // Transfer fractional tokens from seller directly to buyer (compliance checked inside)
-        FractionalToken(payable(tokenContract)).transferFrom(seller, msg.sender, amount);
+        // Transfer fractional tokens from seller directly to buyer (compliance gate fires inside).
+        // slither-disable-next-line arbitrary-send-erc20
+        IERC20(listing.tokenContract).safeTransferFrom(listing.seller, msg.sender, listing.amount);
 
         // Settle payment
-        if (paymentToken == address(0)) {
+        if (listing.paymentToken == address(0)) {
             require(msg.value == totalPrice, "EM: incorrect ETH amount");
             _accruedFees[address(0)] += fee;
-            (bool ok,) = seller.call{value: sellerProceeds}("");
+            (bool ok,) = listing.seller.call{value: totalPrice - fee}("");
             require(ok, "EM: ETH transfer failed");
         } else {
             require(msg.value == 0, "EM: ETH not accepted for ERC-20 listing");
-            IERC20 token = IERC20(paymentToken);
-            token.safeTransferFrom(msg.sender, address(this), totalPrice);
-            _accruedFees[paymentToken] += fee;
-            token.safeTransfer(seller, sellerProceeds);
+            IERC20(listing.paymentToken).safeTransferFrom(msg.sender, address(this), totalPrice);
+            _accruedFees[listing.paymentToken] += fee;
+            IERC20(listing.paymentToken).safeTransfer(listing.seller, totalPrice - fee);
         }
 
-        emit Purchased(listingId, msg.sender, seller, amount, totalPrice, fee);
+        emit Purchased(listingId, msg.sender, listing.seller, listing.amount, totalPrice, fee);
     }
 
     // Cancel
