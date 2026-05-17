@@ -31,6 +31,12 @@ import {GovernanceTimelock}     from "../src/governance/GovernanceTimelock.sol";
  * Optional env vars (with defaults):
  *   PLATFORM_FEE_BPS        — marketplace + auction fee in bps (default: 250 = 2.5%)
  *   TIMELOCK_DELAY_SECONDS  — GovernanceTimelock delay in seconds (default: 172800 = 48h)
+ *
+ * ERC-20 payment tokens whitelisted at deploy time (per network):
+ *   Polygon mainnet — USDC (native), USDC.e (bridged), USDT
+ *   Sepolia         — Circle testnet USDC
+ *   Amoy            — Circle testnet USDC
+ *   Local           — none (ETH only; add manually via allowPaymentToken)
  */
 contract Deploy is Script {
     address private _ctr;
@@ -77,6 +83,10 @@ contract Deploy is Script {
         // auto-registers them as agents for freeze/unfreeze on listing and auction.
         FractionalTokenFactory(payable(_ftFactory)).setVenueContracts(_escrow, _auction);
         console2.log("Venue contracts registered on factory");
+
+        // Whitelist known stablecoins on both venue contracts so ERC-20 listings
+        // and auctions work immediately after deploy without manual admin calls.
+        _allowStablecoins();
 
         vm.stopBroadcast();
 
@@ -224,6 +234,13 @@ contract Deploy is Script {
         require(FractionalTokenFactory(payable(_ftFactory)).escrowMarketplace() == _escrow,  "Assert: factory escrow mismatch");
         require(FractionalTokenFactory(payable(_ftFactory)).auctionHouse()      == _auction, "Assert: factory auction mismatch");
 
+        // Verify all stablecoins are whitelisted on both venue contracts
+        address[] memory stables = _stablecoinAddresses();
+        for (uint256 i = 0; i < stables.length; i++) {
+            require(EscrowMarketplace(payable(_escrow)).isPaymentTokenAllowed(stables[i]), "Assert: Escrow missing stablecoin");
+            require(AuctionHouse(payable(_auction)).isPaymentTokenAllowed(stables[i]),     "Assert: Auction missing stablecoin");
+        }
+
         console2.log("=== All post-deploy assertions passed ===");
     }
 
@@ -265,5 +282,48 @@ contract Deploy is Script {
         if (id == 11155111) return "sepolia";
         if (id == 1)        return "mainnet";
         return "local";
+    }
+
+    // ── Step 6: whitelist stablecoins on venue contracts ──────────────────────
+
+    function _allowStablecoins() internal {
+        address[] memory tokens = _stablecoinAddresses();
+        if (tokens.length == 0) {
+            console2.log("No stablecoins to whitelist on this network (ETH only)");
+            return;
+        }
+        for (uint256 i = 0; i < tokens.length; i++) {
+            EscrowMarketplace(payable(_escrow)).allowPaymentToken(tokens[i]);
+            AuctionHouse(payable(_auction)).allowPaymentToken(tokens[i]);
+            console2.log("Payment token whitelisted:", tokens[i]);
+        }
+    }
+
+    /**
+     * @dev Returns canonical stablecoin addresses for the current network.
+     *      address(0) entries are never included — only real, deployed tokens.
+     *      Local/unknown networks return an empty array (ETH-only mode).
+     */
+    function _stablecoinAddresses() internal view returns (address[] memory tokens) {
+        uint256 id = block.chainid;
+
+        if (id == 137) {
+            // Polygon PoS mainnet
+            tokens = new address[](3);
+            tokens[0] = 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359; // USDC  (native, Circle)
+            tokens[1] = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174; // USDC.e (bridged, Polygon)
+            tokens[2] = 0xc2132D05D31c914a87C6611C10748AEb04B58e8F; // USDT  (Tether on Polygon)
+        } else if (id == 11155111) {
+            // Sepolia testnet — Circle's official testnet USDC
+            tokens = new address[](1);
+            tokens[0] = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238;
+        } else if (id == 80002) {
+            // Polygon Amoy testnet — Circle's CCTP testnet USDC
+            tokens = new address[](1);
+            tokens[0] = 0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582;
+        } else {
+            // Local / unknown — return empty; admin must whitelist manually
+            tokens = new address[](0);
+        }
     }
 }
