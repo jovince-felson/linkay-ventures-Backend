@@ -37,27 +37,27 @@ contract FractionalTokenTest is Test {
         // CTR  -  remove topic 2 so only topics 1+3 are required
         ctr = ClaimTopicsRegistry(payable(address(new ERC1967Proxy(
             address(new ClaimTopicsRegistry()),
-            abi.encodeWithSelector(ClaimTopicsRegistry.initialize.selector, admin)
+            abi.encodeWithSelector(ClaimTopicsRegistry.initialize.selector, admin, admin)
         ))));
         ctr.removeClaimTopic(2);
 
         // TIR
         tir = TrustedIssuersRegistry(payable(address(new ERC1967Proxy(
             address(new TrustedIssuersRegistry()),
-            abi.encodeWithSelector(TrustedIssuersRegistry.initialize.selector, admin)
+            abi.encodeWithSelector(TrustedIssuersRegistry.initialize.selector, admin, admin)
         ))));
         tir.addTrustedIssuer(issuer, issuerTopics);
 
         // IR
         ir = IdentityRegistry(payable(address(new ERC1967Proxy(
             address(new IdentityRegistry()),
-            abi.encodeWithSelector(IdentityRegistry.initialize.selector, admin, address(ctr), address(tir))
+            abi.encodeWithSelector(IdentityRegistry.initialize.selector, admin, address(ctr), address(tir), admin)
         ))));
 
         // CM
         cm = ComplianceModule(payable(address(new ERC1967Proxy(
             address(new ComplianceModule()),
-            abi.encodeWithSelector(ComplianceModule.initialize.selector, admin, address(ir))
+            abi.encodeWithSelector(ComplianceModule.initialize.selector, admin, address(ir), admin)
         ))));
 
         // FractionalToken
@@ -71,6 +71,7 @@ contract FractionalTokenTest is Test {
                 ASSET_ID,
                 address(ir),
                 address(cm),
+                admin,
                 admin
             )
         ))));
@@ -86,8 +87,8 @@ contract FractionalTokenTest is Test {
     function _verifyWallet(address wallet) internal {
         vm.startPrank(issuer);
         ir.addIdentity(wallet, keccak256(abi.encodePacked(wallet)));
-        ir.addClaim(wallet, 1, 1, bytes("sig"), abi.encodePacked(bytes2("US")), "");
-        ir.addClaim(wallet, 3, 1, bytes("sig"), abi.encodePacked(bytes2("US")), "");
+        ir.addClaim(wallet, 1, abi.encodePacked(bytes2("US")), "");
+        ir.addClaim(wallet, 3, abi.encodePacked(bytes2("US")), "");
         vm.stopPrank();
     }
 
@@ -99,7 +100,7 @@ contract FractionalTokenTest is Test {
                 FractionalToken.initialize.selector,
                 "Test", "TST", SUPPLY,
                 keccak256(abi.encodePacked(block.timestamp)),
-                address(ir), address(cm), admin
+                address(ir), address(cm), admin, admin
             )
         ))));
     }
@@ -364,11 +365,14 @@ contract FractionalTokenTest is Test {
         assertEq(ft.balanceOf(investor2), 600e18);
     }
 
-    function test_ForcedTransfer_RecipientNotVerified_Reverts() public {
+    function test_ForcedTransfer_UnverifiedRecipient_Succeeds() public {
+        // forcedTransfer bypasses ALL compliance — unverified recipient is intentionally allowed
+        // (court-order / regulatory seizure scenario: destination wallet may be a gov custodian)
         address stranger = makeAddr("stranger");
+        uint256 before = ft.balanceOf(stranger);
         vm.prank(admin);
-        vm.expectRevert("FT: recipient not KYC verified");
         ft.forcedTransfer(treasury, stranger, 100e18);
+        assertEq(ft.balanceOf(stranger), before + 100e18);
     }
 
     function test_ForcedTransfer_ZeroAddress_Reverts() public {
@@ -424,6 +428,34 @@ contract FractionalTokenTest is Test {
         assertEq(address(ft.complianceModule()), address(cm));
     }
 
+    function test_SetComplianceModule_OnlyUpgradeAdmin_Reverts() public {
+        address separateUpgradeAdmin = makeAddr("upgradeAdmin");
+
+        // Deploy a token where owner != upgradeAdmin — mirrors the production setup
+        // where owner = Gnosis Safe and upgradeAdmin = GovernanceTimelock.
+        FractionalToken ft2 = FractionalToken(payable(address(new ERC1967Proxy(
+            address(new FractionalToken()),
+            abi.encodeWithSelector(
+                FractionalToken.initialize.selector,
+                "Test2", "TST2", SUPPLY,
+                keccak256("asset-split-admin"),
+                address(ir), address(cm),
+                admin,               // owner  (Gnosis Safe in prod)
+                separateUpgradeAdmin // upgradeAdmin (GovernanceTimelock in prod)
+            )
+        ))));
+
+        // owner alone must be rejected
+        vm.prank(admin);
+        vm.expectRevert("FT: caller not upgrade admin");
+        ft2.setComplianceModule(address(cm));
+
+        // upgradeAdmin succeeds
+        vm.prank(separateUpgradeAdmin);
+        ft2.setComplianceModule(address(cm));
+        assertEq(address(ft2.complianceModule()), address(cm));
+    }
+
     function test_SetComplianceModule_ZeroAddress_Reverts() public {
         vm.prank(admin);
         vm.expectRevert("FT: zero module");
@@ -460,7 +492,7 @@ contract FractionalTokenTest is Test {
         vm.prank(admin);
         cm.addAgent(agent);
 
-        // Lock-up is keyed by token contract (msg.sender inside isTransferValid = address(ft))
+        // Lock-up is keyed by token contract; FractionalToken passes address(this) to isTransferValid
         vm.prank(agent);
         cm.setLockUp(address(ft), investor1, block.timestamp + 30 days);
 
@@ -523,6 +555,66 @@ contract FractionalTokenTest is Test {
         assertFalse(success);
     }
 
+    // ── Fuzz tests ─────────────────────────────────────────────────────────────
+
+    // Invariant: availableBalance + frozenTokens == balanceOf at every point during freeze/unfreeze.
+    function testFuzz_FreezeAccounting_Invariants(
+        uint256 balance,
+        uint256 freezeAmount,
+        uint256 unfreezeAmount
+    ) public {
+        balance        = bound(balance, 1, SUPPLY);
+        freezeAmount   = bound(freezeAmount, 1, balance);
+        unfreezeAmount = bound(unfreezeAmount, 1, freezeAmount);
+
+        vm.prank(treasury);
+        ft.transfer(investor1, balance);
+
+        vm.prank(admin);
+        ft.addAgent(agent);
+
+        vm.prank(agent);
+        ft.freezeTokens(investor1, freezeAmount);
+
+        assertLe(ft.frozenTokens(investor1), ft.balanceOf(investor1));
+        assertEq(ft.availableBalance(investor1) + ft.frozenTokens(investor1), ft.balanceOf(investor1));
+
+        vm.prank(agent);
+        ft.unfreezeTokens(investor1, unfreezeAmount);
+
+        assertLe(ft.frozenTokens(investor1), ft.balanceOf(investor1));
+        assertEq(ft.availableBalance(investor1) + ft.frozenTokens(investor1), ft.balanceOf(investor1));
+    }
+
+    // Invariant: frozenTokens <= balanceOf after forcedTransfer, even when tokens are partially frozen.
+    function testFuzz_ForcedTransfer_FreezeAccounting(
+        uint256 balance,
+        uint256 freezeAmount,
+        uint256 transferAmount
+    ) public {
+        balance        = bound(balance, 1, SUPPLY);
+        freezeAmount   = bound(freezeAmount, 0, balance);
+        transferAmount = bound(transferAmount, 1, balance);
+
+        vm.prank(treasury);
+        ft.transfer(investor1, balance);
+
+        vm.prank(admin);
+        ft.addAgent(agent);
+
+        if (freezeAmount > 0) {
+            vm.prank(agent);
+            ft.freezeTokens(investor1, freezeAmount);
+        }
+
+        vm.prank(admin);
+        ft.forcedTransfer(investor1, investor2, transferAmount);
+
+        // frozen must never exceed the remaining balance after the forced transfer
+        assertLe(ft.frozenTokens(investor1), ft.balanceOf(investor1));
+        assertEq(ft.availableBalance(investor1) + ft.frozenTokens(investor1), ft.balanceOf(investor1));
+    }
+
     //  setComplianceModule code-length check 
 
     function test_SetComplianceModule_NotContract_Reverts() public {
@@ -550,5 +642,33 @@ contract FractionalTokenTest is Test {
         ft.upgradeToAndCall(address(newImpl), "");
         assertEq(ft.assetId(), ASSET_ID);
         assertEq(ft.totalSupply(), SUPPLY);
+    }
+
+    // proposeUpgradeAdmin / acceptUpgradeAdmin
+    function test_ProposeUpgradeAdmin_Success() public {
+        address newAdmin = makeAddr("newFTUpgradeAdmin");
+        vm.prank(admin);
+        ft.proposeUpgradeAdmin(newAdmin);
+        vm.prank(newAdmin);
+        ft.acceptUpgradeAdmin();
+        assertEq(ft.upgradeAdmin(), newAdmin);
+    }
+
+    function test_ProposeUpgradeAdmin_NotUpgradeAdmin_Reverts() public {
+        vm.prank(investor1);
+        vm.expectRevert("FT: caller not upgrade admin");
+        ft.proposeUpgradeAdmin(investor1);
+    }
+
+    function test_ProposeUpgradeAdmin_ZeroAddress_Reverts() public {
+        vm.prank(admin);
+        vm.expectRevert("FT: zero address");
+        ft.proposeUpgradeAdmin(address(0));
+    }
+
+    function test_AcceptUpgradeAdmin_NotPending_Reverts() public {
+        vm.prank(investor1);
+        vm.expectRevert("FT: caller not pending upgrade admin");
+        ft.acceptUpgradeAdmin();
     }
 }

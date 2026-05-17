@@ -9,3 +9,13 @@ cache/
 
 # Coverage
 lcov.info
+
+# Diagrams and local docs (not part of the repo)
+*.drawio
+*.pdf
+
+# Deployment outputs for local / test runs only
+deployments/local.json
+
+# Misc
+check.md

@@ -22,7 +22,7 @@ contract AssetNFTTest is Test {
         AssetNFT impl = new AssetNFT();
         ERC1967Proxy proxy = new ERC1967Proxy(
             address(impl),
-            abi.encodeWithSelector(AssetNFT.initialize.selector, NAME, SYMBOL, assetId, admin)
+            abi.encodeWithSelector(AssetNFT.initialize.selector, NAME, SYMBOL, assetId, admin, admin)
         );
         nft = AssetNFT(payable(address(proxy)));
         vm.stopPrank();
@@ -92,9 +92,6 @@ contract AssetNFTTest is Test {
         vm.prank(admin);
         nft.mint(nftOwner, 1, URI);
 
-        vm.prank(nftOwner);
-        nft.approve(admin, 1);
-
         vm.prank(admin);
         nft.transferFrom(nftOwner, user, 1);
 
@@ -114,9 +111,6 @@ contract AssetNFTTest is Test {
         vm.prank(admin);
         nft.mint(nftOwner, 1, URI);
 
-        vm.prank(nftOwner);
-        nft.approve(admin, 1);
-
         vm.prank(admin);
         nft.safeTransferFrom(nftOwner, user, 1, "");
 
@@ -130,6 +124,22 @@ contract AssetNFTTest is Test {
         vm.prank(nftOwner);
         vm.expectRevert("AssetNFT: transfers restricted to admin");
         nft.safeTransferFrom(nftOwner, user, 1, "");
+    }
+
+    // Approvals disabled
+    function test_Approve_Reverts() public {
+        vm.prank(admin);
+        nft.mint(nftOwner, 1, URI);
+
+        vm.prank(nftOwner);
+        vm.expectRevert("AssetNFT: approvals disabled");
+        nft.approve(user, 1);
+    }
+
+    function test_SetApprovalForAll_Reverts() public {
+        vm.prank(nftOwner);
+        vm.expectRevert("AssetNFT: approvals disabled");
+        nft.setApprovalForAll(user, true);
     }
 
     // Pause / unpause
@@ -154,9 +164,6 @@ contract AssetNFTTest is Test {
     function test_Pause_BlocksTransfer() public {
         vm.prank(admin);
         nft.mint(nftOwner, 1, URI);
-
-        vm.prank(nftOwner);
-        nft.approve(admin, 1);
 
         vm.prank(admin);
         nft.pause();
@@ -206,5 +213,33 @@ contract AssetNFTTest is Test {
         vm.prank(admin);
         nft.upgradeToAndCall(address(newImpl), "");
         assertEq(nft.assetId(), assetId);
+    }
+
+    // proposeUpgradeAdmin / acceptUpgradeAdmin
+    function test_ProposeUpgradeAdmin_Success() public {
+        address newAdmin = makeAddr("newUpgradeAdmin");
+        vm.prank(admin);
+        nft.proposeUpgradeAdmin(newAdmin);
+        vm.prank(newAdmin);
+        nft.acceptUpgradeAdmin();
+        assertEq(nft.upgradeAdmin(), newAdmin);
+    }
+
+    function test_ProposeUpgradeAdmin_NotUpgradeAdmin_Reverts() public {
+        vm.prank(user);
+        vm.expectRevert("AssetNFT: caller not upgrade admin");
+        nft.proposeUpgradeAdmin(user);
+    }
+
+    function test_ProposeUpgradeAdmin_ZeroAddress_Reverts() public {
+        vm.prank(admin);
+        vm.expectRevert("AssetNFT: zero address");
+        nft.proposeUpgradeAdmin(address(0));
+    }
+
+    function test_AcceptUpgradeAdmin_NotPending_Reverts() public {
+        vm.prank(user);
+        vm.expectRevert("AssetNFT: caller not pending upgrade admin");
+        nft.acceptUpgradeAdmin();
     }
 }

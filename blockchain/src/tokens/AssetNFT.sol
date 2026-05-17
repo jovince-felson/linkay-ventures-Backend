@@ -29,8 +29,13 @@ contract AssetNFT is
     string  private _metadataURI;
     bool    public  minted;
 
+    address public upgradeAdmin;
+    address public pendingUpgradeAdmin;
+
     event AssetNFTMinted(uint256 indexed tokenId, bytes32 indexed assetId, address owner, string metadataURI);
     event ContractUpgraded(address indexed newImplementation);
+    event UpgradeAdminTransferred(address indexed previous, address indexed next);
+    event UpgradeAdminProposed(address indexed proposed);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -41,7 +46,8 @@ contract AssetNFT is
         string memory name,
         string memory symbol,
         bytes32 _assetId,
-        address admin
+        address admin,
+        address _upgradeAdmin
     ) external initializer {
         __ERC721_init(name, symbol);
         __Ownable_init(admin);
@@ -49,7 +55,23 @@ contract AssetNFT is
         __Pausable_init();
         __ReentrancyGuard_init();
 
-        assetId = _assetId;
+        require(_upgradeAdmin != address(0), "AssetNFT: zero upgrade admin");
+        assetId      = _assetId;
+        upgradeAdmin = _upgradeAdmin;
+    }
+
+    function proposeUpgradeAdmin(address newAdmin) external {
+        require(msg.sender == upgradeAdmin, "AssetNFT: caller not upgrade admin");
+        require(newAdmin != address(0), "AssetNFT: zero address");
+        pendingUpgradeAdmin = newAdmin;
+        emit UpgradeAdminProposed(newAdmin);
+    }
+
+    function acceptUpgradeAdmin() external {
+        require(msg.sender == pendingUpgradeAdmin, "AssetNFT: caller not pending upgrade admin");
+        emit UpgradeAdminTransferred(upgradeAdmin, msg.sender);
+        upgradeAdmin = msg.sender;
+        pendingUpgradeAdmin = address(0);
     }
 
     //  Mint (one-time, onlyOwner) 
@@ -75,9 +97,19 @@ contract AssetNFT is
 
     // Transfer lock
     // Asset NFTs represent real-world asset identity  -  only the admin may transfer them.
+    // Approvals are disabled entirely: since only the admin can transfer, any approval granted
+    // to a third party would silently do nothing and create misleading on-chain state.
+    function approve(address, uint256) public pure override {
+        revert("AssetNFT: approvals disabled");
+    }
+
+    function setApprovalForAll(address, bool) public pure override {
+        revert("AssetNFT: approvals disabled");
+    }
+
     function transferFrom(address from, address to, uint256 id) public override whenNotPaused {
         require(msg.sender == owner(), "AssetNFT: transfers restricted to admin");
-        super.transferFrom(from, to, id);
+        _transfer(from, to, id);
     }
 
     function safeTransferFrom(address from, address to, uint256 id, bytes memory data)
@@ -86,7 +118,7 @@ contract AssetNFT is
         whenNotPaused
     {
         require(msg.sender == owner(), "AssetNFT: transfers restricted to admin");
-        super.safeTransferFrom(from, to, id, data);
+        _safeTransfer(from, to, id, data);
     }
 
     // Metadata
@@ -104,7 +136,8 @@ contract AssetNFT is
         _unpause();
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+    function _authorizeUpgrade(address newImplementation) internal override {
+        require(msg.sender == upgradeAdmin, "AssetNFT: caller not upgrade admin");
         require(newImplementation != address(0), "AssetNFT: zero implementation");
         require(newImplementation.code.length > 0, "AssetNFT: not a contract");
         emit ContractUpgraded(newImplementation);
@@ -116,5 +149,5 @@ contract AssetNFT is
     }
 
     // Storage gap for upgrades
-    uint256[50] private __gap;
+    uint256[48] private __gap;
 }

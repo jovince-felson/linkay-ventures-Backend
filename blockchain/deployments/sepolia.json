@@ -1,12 +1,12 @@
 {
+  "network": "sepolia",
   "ClaimTopicsRegistry": "",
   "TrustedIssuersRegistry": "",
   "IdentityRegistry": "",
   "ComplianceModule": "",
   "AssetNFTFactory": "",
   "FractionalTokenFactory": "",
-  "EscrowContract": "",
-  "AuctionFactory": "",
-  "TimelockController": "",
-  "GnosisSafe": ""
+  "EscrowMarketplace": "",
+  "AuctionHouse": "",
+  "GovernanceTimelock": ""
 }
