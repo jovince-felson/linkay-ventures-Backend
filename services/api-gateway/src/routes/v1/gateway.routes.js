@@ -223,6 +223,20 @@ router.use(
   }),
 );
 
+// ── User routes (proxied to auth-service) ─────────────────────────────────
+router.use("/api/v1/users", verifyToken);
+router.use(
+  "/api/v1/users",
+  createProxyMiddleware({
+    target: SERVICESV1.AUTH_SERVICE_URL,
+    changeOrigin: true,
+    proxyTimeout: 30000,
+    timeout: 30000,
+    pathRewrite: (path) => `/api/v1/users${path}`,
+    on: { proxyRes: injectCors },
+  }),
+);
+
 router.use((req, res) => {
   res.status(404).json({
     success: false,

@@ -239,6 +239,9 @@ export const login = async (req, res, next) => {
         role: user.role,
         walletAddress: user.walletAddress,
         kycStatus: user.kycStatus,
+        is_user: user.is_user,
+        is_museum_user: user.is_museum_user,
+        museum_id: user.museum_id,
       },
     });
   } catch (error) {
