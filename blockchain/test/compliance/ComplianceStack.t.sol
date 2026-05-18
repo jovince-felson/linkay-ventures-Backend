@@ -33,7 +33,7 @@ contract ComplianceStackTest is Test {
         ClaimTopicsRegistry ctrImpl = new ClaimTopicsRegistry();
         ERC1967Proxy ctrProxy = new ERC1967Proxy(
             address(ctrImpl),
-            abi.encodeWithSelector(ClaimTopicsRegistry.initialize.selector, admin)
+            abi.encodeWithSelector(ClaimTopicsRegistry.initialize.selector, admin, admin)
         );
         ctr = ClaimTopicsRegistry(payable(address(ctrProxy)));
 
@@ -41,7 +41,7 @@ contract ComplianceStackTest is Test {
         TrustedIssuersRegistry tirImpl = new TrustedIssuersRegistry();
         ERC1967Proxy tirProxy = new ERC1967Proxy(
             address(tirImpl),
-            abi.encodeWithSelector(TrustedIssuersRegistry.initialize.selector, admin)
+            abi.encodeWithSelector(TrustedIssuersRegistry.initialize.selector, admin, admin)
         );
         tir = TrustedIssuersRegistry(payable(address(tirProxy)));
 
@@ -56,7 +56,8 @@ contract ComplianceStackTest is Test {
                 IdentityRegistry.initialize.selector,
                 admin,
                 address(ctr),
-                address(tir)
+                address(tir),
+                admin
             )
         );
         ir = IdentityRegistry(payable(address(irProxy)));
@@ -65,7 +66,7 @@ contract ComplianceStackTest is Test {
         ComplianceModule cmImpl = new ComplianceModule();
         ERC1967Proxy cmProxy = new ERC1967Proxy(
             address(cmImpl),
-            abi.encodeWithSelector(ComplianceModule.initialize.selector, admin, address(ir))
+            abi.encodeWithSelector(ComplianceModule.initialize.selector, admin, address(ir), admin)
         );
         cm = ComplianceModule(payable(address(cmProxy)));
 
@@ -154,8 +155,8 @@ contract ComplianceStackTest is Test {
     function _addIdentityWithClaims(address wallet) internal {
         vm.startPrank(issuer);
         ir.addIdentity(wallet, keccak256(abi.encodePacked(wallet)));
-        ir.addClaim(wallet, 1, 1, bytes("sig"), abi.encodePacked(bytes2("US")), "");
-        ir.addClaim(wallet, 3, 1, bytes("sig"), abi.encodePacked(bytes2("US")), "");
+        ir.addClaim(wallet, 1, abi.encodePacked(bytes2("US")), "");
+        ir.addClaim(wallet, 3, abi.encodePacked(bytes2("US")), "");
         vm.stopPrank();
     }
 
@@ -183,7 +184,7 @@ contract ComplianceStackTest is Test {
         vm.startPrank(issuer);
         ir.addIdentity(wallet1, keccak256("identity1"));
         vm.expectRevert("IR: topic not in registry");
-        ir.addClaim(wallet1, 99, 1, bytes("sig"), bytes("data"), "");
+        ir.addClaim(wallet1, 99, bytes("data"), "");
         vm.stopPrank();
     }
 
@@ -192,7 +193,7 @@ contract ComplianceStackTest is Test {
         vm.startPrank(issuer);
         ir.addIdentity(wallet1, keccak256("identity1"));
         vm.expectRevert("IR: issuer not authorized for this topic");
-        ir.addClaim(wallet1, 2, 1, bytes("sig"), bytes("data"), "");
+        ir.addClaim(wallet1, 2, bytes("data"), "");
         vm.stopPrank();
     }
 
@@ -200,10 +201,10 @@ contract ComplianceStackTest is Test {
         vm.startPrank(issuer);
         ir.addIdentity(wallet1, keccak256("identity1"));
         // Only topic 1 written  -  topic 3 still missing
-        ir.addClaim(wallet1, 1, 1, bytes("sig"), abi.encodePacked(bytes2("US")), "");
+        ir.addClaim(wallet1, 1, abi.encodePacked(bytes2("US")), "");
         assertFalse(ir.isVerified(wallet1));
         // Add topic 3  -  now all required CTR topics held (1, 2, 3)  -  wait, topic 2 still missing
-        ir.addClaim(wallet1, 3, 1, bytes("sig"), abi.encodePacked(bytes2("US")), "");
+        ir.addClaim(wallet1, 3, abi.encodePacked(bytes2("US")), "");
         vm.stopPrank();
         // Topic 2 = ACCREDITED_INVESTOR still required by CTR. Add topic 2 issuer.
         uint256[] memory t2 = new uint256[](1);
@@ -211,7 +212,7 @@ contract ComplianceStackTest is Test {
         vm.prank(admin);
         tir.updateIssuerClaimTopics(issuer, t2);
         vm.prank(issuer);
-        ir.addClaim(wallet1, 2, 1, bytes("sig"), bytes("data"), "");
+        ir.addClaim(wallet1, 2, bytes("data"), "");
         assertTrue(ir.isVerified(wallet1));
     }
 
@@ -234,14 +235,14 @@ contract ComplianceStackTest is Test {
         vm.prank(admin);
         ctr.removeClaimTopic(2); // simplify  -  only topics 1, 3 required
 
-        (, , address claimIssuer, , bytes memory data, ) = ir.getClaim(wallet1, 1);
+        (, address claimIssuer, bytes memory data, ) = ir.getClaim(wallet1, 1);
         assertEq(claimIssuer, issuer);
         assertEq(data, abi.encodePacked(bytes2("US")));
     }
 
     // ComplianceModule
     function test_CM_IsTransferValid_BothNotVerified() public view {
-        (bool valid, string memory reason) = cm.isTransferValid(bytes32(0), wallet1, wallet2, 100);
+        (bool valid, string memory reason) = cm.isTransferValid(bytes32(0), address(0), wallet1, wallet2, 100);
         assertFalse(valid);
         assertEq(reason, "CM: sender not KYC verified");
     }
@@ -252,7 +253,7 @@ contract ComplianceStackTest is Test {
         ctr.removeClaimTopic(2);
         _addIdentityWithClaims(wallet1);
 
-        (bool valid, string memory reason) = cm.isTransferValid(bytes32(0), wallet1, wallet2, 100);
+        (bool valid, string memory reason) = cm.isTransferValid(bytes32(0), address(0), wallet1, wallet2, 100);
         assertFalse(valid);
         assertEq(reason, "CM: recipient not KYC verified");
     }
@@ -263,7 +264,7 @@ contract ComplianceStackTest is Test {
         _addIdentityWithClaims(wallet1);
         _addIdentityWithClaims(wallet2);
 
-        (bool valid, ) = cm.isTransferValid(bytes32(0), wallet1, wallet2, 100);
+        (bool valid, ) = cm.isTransferValid(bytes32(0), address(0), wallet1, wallet2, 100);
         assertTrue(valid);
     }
 
@@ -447,12 +448,12 @@ contract ComplianceStackTest is Test {
     function test_IR_AddClaim_UpdateExisting() public {
         vm.startPrank(issuer);
         ir.addIdentity(wallet1, keccak256("id1"));
-        ir.addClaim(wallet1, 1, 1, bytes("sig"), bytes("olddata"), "");
+        ir.addClaim(wallet1, 1, bytes("olddata"), "");
         // Second call to same topic = update, not duplicate
-        ir.addClaim(wallet1, 1, 1, bytes("newsig"), bytes("newdata"), "");
+        ir.addClaim(wallet1, 1, bytes("newdata"), "");
         vm.stopPrank();
 
-        (, , , , bytes memory data, ) = ir.getClaim(wallet1, 1);
+        (, , bytes memory data, ) = ir.getClaim(wallet1, 1);
         assertEq(data, bytes("newdata"));
 
         // heldTopics should contain topic 1 exactly once
@@ -467,7 +468,7 @@ contract ComplianceStackTest is Test {
     function test_IR_RemoveClaim() public {
         vm.startPrank(issuer);
         ir.addIdentity(wallet1, keccak256("id1"));
-        ir.addClaim(wallet1, 1, 1, bytes("sig"), bytes("data"), "");
+        ir.addClaim(wallet1, 1, bytes("data"), "");
         ir.removeClaim(wallet1, 1);
         vm.stopPrank();
 
@@ -512,8 +513,8 @@ contract ComplianceStackTest is Test {
     function test_IR_GetHeldTopics() public {
         vm.startPrank(issuer);
         ir.addIdentity(wallet1, keccak256("id1"));
-        ir.addClaim(wallet1, 1, 1, bytes("sig"), bytes("data"), "");
-        ir.addClaim(wallet1, 3, 1, bytes("sig"), bytes("data"), "");
+        ir.addClaim(wallet1, 1, bytes("data"), "");
+        ir.addClaim(wallet1, 3, bytes("data"), "");
         vm.stopPrank();
 
         uint256[] memory held = ir.getHeldTopics(wallet1);
@@ -699,11 +700,10 @@ contract ComplianceStackTest is Test {
         vm.prank(admin);
         cm.addAgent(agent);
 
-        // address(this) = the test contract, which is msg.sender when isTransferValid is called directly
         vm.prank(agent);
         cm.setLockUp(address(this), wallet1, block.timestamp + 30 days);
 
-        (bool valid, string memory reason) = cm.isTransferValid(bytes32(0), wallet1, wallet2, 100);
+        (bool valid, string memory reason) = cm.isTransferValid(bytes32(0), address(this), wallet1, wallet2, 100);
         assertFalse(valid);
         assertEq(reason, "CM: sender tokens locked");
     }
@@ -721,7 +721,7 @@ contract ComplianceStackTest is Test {
         vm.prank(admin);
         cm.setJurisdictionRules(assetId, jurs, ComplianceModule.EligibilityLevel.RETAIL);
 
-        (bool valid, string memory reason) = cm.isTransferValid(assetId, wallet1, wallet2, 100);
+        (bool valid, string memory reason) = cm.isTransferValid(assetId, address(0), wallet1, wallet2, 100);
         assertFalse(valid);
         assertEq(reason, "CM: recipient jurisdiction not allowed");
     }
@@ -738,7 +738,7 @@ contract ComplianceStackTest is Test {
         vm.prank(admin);
         cm.setJurisdictionRules(assetId, jurs, ComplianceModule.EligibilityLevel.RETAIL);
 
-        (bool valid,) = cm.isTransferValid(assetId, wallet1, wallet2, 100);
+        (bool valid,) = cm.isTransferValid(assetId, address(0), wallet1, wallet2, 100);
         assertTrue(valid);
     }
 
@@ -800,8 +800,8 @@ contract ComplianceStackTest is Test {
         address wallet3 = makeAddr("wallet3");
         vm.startPrank(issuer);
         ir.addIdentity(wallet3, keccak256(abi.encodePacked(wallet3)));
-        ir.addClaim(wallet3, 1, 1, bytes("sig"), abi.encodePacked(bytes2("US")), "");
-        ir.addClaim(wallet3, 3, 1, bytes("sig"), abi.encodePacked(bytes1(0x55)), "");
+        ir.addClaim(wallet3, 1, abi.encodePacked(bytes2("US")), "");
+        ir.addClaim(wallet3, 3, abi.encodePacked(bytes1(0x55)), "");
         vm.stopPrank();
 
         assertTrue(ir.isVerified(wallet3));
@@ -812,7 +812,7 @@ contract ComplianceStackTest is Test {
         vm.prank(admin);
         cm.setJurisdictionRules(assetId, jurs, ComplianceModule.EligibilityLevel.RETAIL);
 
-        (bool valid, string memory reason) = cm.isTransferValid(assetId, wallet1, wallet3, 100);
+        (bool valid, string memory reason) = cm.isTransferValid(assetId, address(0), wallet1, wallet3, 100);
         assertFalse(valid);
         assertEq(reason, "CM: recipient missing jurisdiction claim");
     }
@@ -892,5 +892,289 @@ contract ComplianceStackTest is Test {
         vm.prank(admin);
         cm.upgradeToAndCall(address(newImpl), "");
         assertEq(address(cm.identityRegistry()), address(ir));
+    }
+
+    // Eligibility enforcement
+    function test_CM_EligibilityTooLow_BlocksTransfer() public {
+        vm.prank(admin);
+        ctr.removeClaimTopic(2);
+        _addIdentityWithClaims(wallet1);
+        _addIdentityWithClaims(wallet2);
+
+        vm.prank(admin);
+        cm.addAgent(agent);
+
+        bytes32 assetId = keccak256("accredited-asset");
+        bytes2[] memory jurs = new bytes2[](1);
+        jurs[0] = bytes2("US");
+        vm.prank(admin);
+        cm.setJurisdictionRules(assetId, jurs, ComplianceModule.EligibilityLevel.ACCREDITED);
+
+        // wallet2 has default eligibility (RETAIL) — below ACCREDITED
+        (bool valid, string memory reason) = cm.isTransferValid(assetId, address(0), wallet1, wallet2, 100);
+        assertFalse(valid);
+        assertEq(reason, "CM: recipient eligibility too low");
+    }
+
+    function test_CM_EligibilityMet_AllowsTransfer() public {
+        vm.prank(admin);
+        ctr.removeClaimTopic(2);
+        _addIdentityWithClaims(wallet1);
+        _addIdentityWithClaims(wallet2);
+
+        vm.prank(admin);
+        cm.addAgent(agent);
+
+        bytes32 assetId = keccak256("accredited-asset");
+        bytes2[] memory jurs = new bytes2[](1);
+        jurs[0] = bytes2("US");
+        vm.prank(admin);
+        cm.setJurisdictionRules(assetId, jurs, ComplianceModule.EligibilityLevel.ACCREDITED);
+
+        // Promote wallet2 to accredited
+        vm.prank(agent);
+        cm.setWalletEligibility(wallet2, ComplianceModule.EligibilityLevel.ACCREDITED);
+
+        (bool valid,) = cm.isTransferValid(assetId, address(0), wallet1, wallet2, 100);
+        assertTrue(valid);
+    }
+
+    function test_CM_SetWalletEligibility_OnlyAgent_Reverts() public {
+        vm.prank(wallet1);
+        vm.expectRevert("CM: caller not agent");
+        cm.setWalletEligibility(wallet2, ComplianceModule.EligibilityLevel.ACCREDITED);
+    }
+
+    function test_CM_GetWalletEligibility_Default_IsRetail() public view {
+        assertEq(uint8(cm.getWalletEligibility(wallet1)), uint8(ComplianceModule.EligibilityLevel.RETAIL));
+    }
+
+    // Regression: removing topic 3 from CTR must not hard-revert isTransferValid on assets
+    // with jurisdiction rules. Before the fix, getClaim(to, 3) would revert ("IR: claim not found")
+    // instead of returning (false, reason), permanently bricking all transfers on that asset.
+    function test_CM_IsTransferValid_Topic3RemovedFromCTR_ReturnsFalseNotRevert() public {
+        vm.startPrank(admin);
+        ctr.removeClaimTopic(2);
+        ctr.removeClaimTopic(3); // topic 3 no longer required globally
+        vm.stopPrank();
+
+        // wallet1: KYC-only (topic 1). isVerified() now passes without topic 3.
+        vm.startPrank(issuer);
+        ir.addIdentity(wallet1, keccak256(abi.encodePacked(wallet1)));
+        ir.addClaim(wallet1, 1, abi.encodePacked(bytes2("US")), "");
+        vm.stopPrank();
+        assertTrue(ir.isVerified(wallet1));
+
+        // wallet2: same — verified without topic 3.
+        vm.startPrank(issuer);
+        ir.addIdentity(wallet2, keccak256(abi.encodePacked(wallet2)));
+        ir.addClaim(wallet2, 1, abi.encodePacked(bytes2("US")), "");
+        vm.stopPrank();
+        assertTrue(ir.isVerified(wallet2));
+
+        // Asset has jurisdiction rules set — this is the condition that triggers the latent bug.
+        bytes32 assetId = keccak256("topic3-removed-asset");
+        bytes2[] memory jurs = new bytes2[](1);
+        jurs[0] = bytes2("US");
+        vm.prank(admin);
+        cm.setJurisdictionRules(assetId, jurs, ComplianceModule.EligibilityLevel.RETAIL);
+
+        // Must return (false, reason) — NOT revert.
+        (bool valid, string memory reason) = cm.isTransferValid(assetId, address(0), wallet1, wallet2, 100);
+        assertFalse(valid);
+        assertEq(reason, "CM: recipient missing jurisdiction claim");
+    }
+
+    // ── CTR proposeUpgradeAdmin / acceptUpgradeAdmin ──────────────────────────
+
+    function test_CTR_ProposeUpgradeAdmin_Success() public {
+        address newAdmin = makeAddr("newCTRUpgradeAdmin");
+        vm.prank(admin);
+        ctr.proposeUpgradeAdmin(newAdmin);
+        vm.prank(newAdmin);
+        ctr.acceptUpgradeAdmin();
+        assertEq(ctr.upgradeAdmin(), newAdmin);
+    }
+
+    function test_CTR_ProposeUpgradeAdmin_NotUpgradeAdmin_Reverts() public {
+        vm.prank(wallet1);
+        vm.expectRevert("CTR: caller not upgrade admin");
+        ctr.proposeUpgradeAdmin(wallet1);
+    }
+
+    function test_CTR_ProposeUpgradeAdmin_ZeroAddress_Reverts() public {
+        vm.prank(admin);
+        vm.expectRevert("CTR: zero address");
+        ctr.proposeUpgradeAdmin(address(0));
+    }
+
+    function test_CTR_AcceptUpgradeAdmin_NotPending_Reverts() public {
+        vm.prank(wallet1);
+        vm.expectRevert("CTR: caller not pending upgrade admin");
+        ctr.acceptUpgradeAdmin();
+    }
+
+    // ── TIR proposeUpgradeAdmin / acceptUpgradeAdmin ──────────────────────────
+
+    function test_TIR_ProposeUpgradeAdmin_Success() public {
+        address newAdmin = makeAddr("newTIRUpgradeAdmin");
+        vm.prank(admin);
+        tir.proposeUpgradeAdmin(newAdmin);
+        vm.prank(newAdmin);
+        tir.acceptUpgradeAdmin();
+        assertEq(tir.upgradeAdmin(), newAdmin);
+    }
+
+    function test_TIR_ProposeUpgradeAdmin_NotUpgradeAdmin_Reverts() public {
+        vm.prank(wallet1);
+        vm.expectRevert("TIR: caller not upgrade admin");
+        tir.proposeUpgradeAdmin(wallet1);
+    }
+
+    function test_TIR_ProposeUpgradeAdmin_ZeroAddress_Reverts() public {
+        vm.prank(admin);
+        vm.expectRevert("TIR: zero address");
+        tir.proposeUpgradeAdmin(address(0));
+    }
+
+    function test_TIR_AcceptUpgradeAdmin_NotPending_Reverts() public {
+        vm.prank(wallet1);
+        vm.expectRevert("TIR: caller not pending upgrade admin");
+        tir.acceptUpgradeAdmin();
+    }
+
+    // ── IR proposeUpgradeAdmin / acceptUpgradeAdmin ───────────────────────────
+
+    function test_IR_ProposeUpgradeAdmin_Success() public {
+        address newAdmin = makeAddr("newIRUpgradeAdmin");
+        vm.prank(admin);
+        ir.proposeUpgradeAdmin(newAdmin);
+        vm.prank(newAdmin);
+        ir.acceptUpgradeAdmin();
+        assertEq(ir.upgradeAdmin(), newAdmin);
+    }
+
+    function test_IR_ProposeUpgradeAdmin_NotUpgradeAdmin_Reverts() public {
+        vm.prank(wallet1);
+        vm.expectRevert("IR: caller not upgrade admin");
+        ir.proposeUpgradeAdmin(wallet1);
+    }
+
+    function test_IR_ProposeUpgradeAdmin_ZeroAddress_Reverts() public {
+        vm.prank(admin);
+        vm.expectRevert("IR: zero address");
+        ir.proposeUpgradeAdmin(address(0));
+    }
+
+    function test_IR_AcceptUpgradeAdmin_NotPending_Reverts() public {
+        vm.prank(wallet1);
+        vm.expectRevert("IR: caller not pending upgrade admin");
+        ir.acceptUpgradeAdmin();
+    }
+
+    // ── CM proposeUpgradeAdmin / acceptUpgradeAdmin ───────────────────────────
+
+    function test_CM_ProposeUpgradeAdmin_Success() public {
+        address newAdmin = makeAddr("newCMUpgradeAdmin");
+        vm.prank(admin);
+        cm.proposeUpgradeAdmin(newAdmin);
+        vm.prank(newAdmin);
+        cm.acceptUpgradeAdmin();
+        assertEq(cm.upgradeAdmin(), newAdmin);
+    }
+
+    function test_CM_ProposeUpgradeAdmin_NotUpgradeAdmin_Reverts() public {
+        vm.prank(wallet1);
+        vm.expectRevert("CM: caller not upgrade admin");
+        cm.proposeUpgradeAdmin(wallet1);
+    }
+
+    function test_CM_ProposeUpgradeAdmin_ZeroAddress_Reverts() public {
+        vm.prank(admin);
+        vm.expectRevert("CM: zero address");
+        cm.proposeUpgradeAdmin(address(0));
+    }
+
+    function test_CM_AcceptUpgradeAdmin_NotPending_Reverts() public {
+        vm.prank(wallet1);
+        vm.expectRevert("CM: caller not pending upgrade admin");
+        cm.acceptUpgradeAdmin();
+    }
+
+    // ── IR getRegisteredWalletsPaginated edge cases ───────────────────────────
+
+    function test_IR_GetRegisteredWalletsPaginated_OffsetBeyondTotal() public {
+        vm.startPrank(issuer);
+        ir.addIdentity(wallet1, keccak256(abi.encodePacked(wallet1)));
+        vm.stopPrank();
+        (address[] memory page,) = ir.getRegisteredWalletsPaginated(999, 10);
+        assertEq(page.length, 0);
+    }
+
+    function test_IR_GetRegisteredWalletsPaginated_ZeroLimit() public {
+        vm.startPrank(issuer);
+        ir.addIdentity(wallet1, keccak256(abi.encodePacked(wallet1)));
+        vm.stopPrank();
+        (address[] memory page,) = ir.getRegisteredWalletsPaginated(0, 0);
+        assertEq(page.length, 0);
+    }
+
+    function test_IR_GetRegisteredWalletsPaginated_LimitClipped() public {
+        vm.startPrank(issuer);
+        ir.addIdentity(wallet1, keccak256(abi.encodePacked(wallet1)));
+        ir.addIdentity(wallet2, keccak256(abi.encodePacked(wallet2)));
+        vm.stopPrank();
+        // offset=1, limit=100 — only 1 wallet remains
+        (address[] memory page,) = ir.getRegisteredWalletsPaginated(1, 100);
+        assertEq(page.length, 1);
+    }
+
+    // ── CM setWalletEligibility zero wallet ───────────────────────────────────
+
+    function test_CM_SetWalletEligibility_ZeroWallet_Reverts() public {
+        vm.prank(admin);
+        cm.addAgent(agent);
+        vm.prank(agent);
+        vm.expectRevert("CM: zero wallet");
+        cm.setWalletEligibility(address(0), ComplianceModule.EligibilityLevel.RETAIL);
+    }
+
+    // ── TIR updateIssuerClaimTopics edge cases ────────────────────────────────
+
+    function test_TIR_UpdateIssuerClaimTopics_NoTopics_Reverts() public {
+        vm.startPrank(admin);
+        tir.addTrustedIssuer(wallet1, defaultTopics);
+        uint256[] memory empty = new uint256[](0);
+        vm.expectRevert("TIR: no claim topics provided");
+        tir.updateIssuerClaimTopics(wallet1, empty);
+        vm.stopPrank();
+    }
+
+    function test_TIR_UpdateIssuerClaimTopics_NotFound_Reverts() public {
+        vm.prank(admin);
+        vm.expectRevert("TIR: issuer not found");
+        tir.updateIssuerClaimTopics(makeAddr("unknown"), defaultTopics);
+    }
+
+    function test_TIR_UpdateIssuerClaimTopics_Success() public {
+        vm.startPrank(admin);
+        tir.addTrustedIssuer(wallet1, defaultTopics);
+        uint256[] memory newTopics = new uint256[](1);
+        newTopics[0] = 1;
+        tir.updateIssuerClaimTopics(wallet1, newTopics);
+        vm.stopPrank();
+        assertTrue(tir.issuerCanWriteTopic(wallet1, 1));
+        assertFalse(tir.issuerCanWriteTopic(wallet1, 3));
+    }
+
+    // ── CTR addClaimTopic after remove ────────────────────────────────────────
+
+    function test_CTR_AddTopic_AfterRemove_Success() public {
+        vm.startPrank(admin);
+        ctr.removeClaimTopic(2);
+        assertFalse(ctr.isClaimTopic(2));
+        ctr.addClaimTopic(2);
+        assertTrue(ctr.isClaimTopic(2));
+        vm.stopPrank();
     }
 }

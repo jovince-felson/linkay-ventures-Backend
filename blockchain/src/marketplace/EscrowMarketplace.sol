@@ -50,6 +50,11 @@ contract EscrowMarketplace is
     // accumulated platform fees per payment token (address(0) = ETH)
     mapping(address => uint256) private _accruedFees;
 
+    // whitelist of accepted ERC-20 payment tokens (address(0) = ETH always allowed)
+    mapping(address => bool) private _allowedPaymentTokens;
+
+    event PaymentTokenAllowed(address indexed token);
+    event PaymentTokenDisallowed(address indexed token);
     event Listed(
         uint256 indexed listingId,
         address indexed seller,
@@ -77,16 +82,39 @@ contract EscrowMarketplace is
         _disableInitializers();
     }
 
-    function initialize(address admin, uint16 _platformFeeBps) external initializer {
+    address public upgradeAdmin;
+    address public pendingUpgradeAdmin;
+
+    event UpgradeAdminTransferred(address indexed previous, address indexed next);
+    event UpgradeAdminProposed(address indexed proposed);
+
+    function initialize(address admin, uint16 _platformFeeBps, address _upgradeAdmin) external initializer {
         __Ownable_init(admin);
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
         __Pausable_init();
         __ReentrancyGuard_init();
 
-        require(_platformFeeBps <= MAX_FEE_BPS, "EM: fee exceeds max");
+        require(_platformFeeBps <= MAX_FEE_BPS,    "EM: fee exceeds max");
+        require(_upgradeAdmin   != address(0),      "EM: zero upgrade admin");
         platformFeeBps = _platformFeeBps;
         _nextListingId = 1;
+        upgradeAdmin   = _upgradeAdmin;
+        _allowedPaymentTokens[address(0)] = true; // ETH always accepted
+    }
+
+    function proposeUpgradeAdmin(address newAdmin) external {
+        require(msg.sender == upgradeAdmin, "EM: caller not upgrade admin");
+        require(newAdmin != address(0), "EM: zero address");
+        pendingUpgradeAdmin = newAdmin;
+        emit UpgradeAdminProposed(newAdmin);
+    }
+
+    function acceptUpgradeAdmin() external {
+        require(msg.sender == pendingUpgradeAdmin, "EM: caller not pending upgrade admin");
+        emit UpgradeAdminTransferred(upgradeAdmin, msg.sender);
+        upgradeAdmin = msg.sender;
+        pendingUpgradeAdmin = address(0);
     }
 
     // List tokens for sale
@@ -94,6 +122,7 @@ contract EscrowMarketplace is
     /**
      * @notice Creates a fixed-price listing. Seller must have approved this contract for at least
      *         their total listed amount (existing + new). Tokens stay in seller's wallet until purchase.
+     *         This contract must be registered as an agent on the FractionalToken (owner calls addAgent).
      * @param tokenContract  FractionalToken address to list.
      * @param amount         Number of tokens to sell.
      * @param pricePerToken  Price per token in paymentToken units (or wei if ETH).
@@ -108,6 +137,10 @@ contract EscrowMarketplace is
         require(tokenContract != address(0), "EM: zero token contract");
         require(amount         > 0,          "EM: zero amount");
         require(pricePerToken  > 0,          "EM: zero price");
+        require(
+            paymentToken == address(0) || _allowedPaymentTokens[paymentToken],
+            "EM: payment token not allowed"
+        );
 
         FractionalToken ft           = FractionalToken(payable(tokenContract));
         uint256 alreadyListed        = _listedAmounts[msg.sender][tokenContract];
@@ -115,6 +148,9 @@ contract EscrowMarketplace is
 
         require(ft.availableBalance(msg.sender) >= totalAfter, "EM: insufficient unlisted balance");
         require(ft.allowance(msg.sender, address(this)) >= totalAfter, "EM: insufficient allowance");
+
+        // Freeze the listed tokens so availableBalance reflects the commitment across all venues
+        ft.freezeTokens(msg.sender, amount);
 
         listingId = _nextListingId++;
         _listings[listingId] = Listing({
@@ -136,8 +172,9 @@ contract EscrowMarketplace is
      * @notice Buys a listing. For ETH listings send exact msg.value. For ERC-20 listings
      *         approve this contract for totalPrice before calling.
      *         FractionalToken's compliance gate fires on the transfer — buyer must be KYC verified.
+     * @param maxTotalPrice  Slippage guard: reverts if seller updated the price above this since the buyer's tx was submitted.
      */
-    function purchaseListing(uint256 listingId)
+    function purchaseListing(uint256 listingId, uint256 maxTotalPrice)
         external
         payable
         whenNotPaused
@@ -148,10 +185,22 @@ contract EscrowMarketplace is
         require(listing.seller != msg.sender, "EM: seller cannot buy own listing");
 
         uint256 totalPrice = (listing.amount * listing.pricePerToken) / 1e18;
+        require(totalPrice > 0,               "EM: price rounds to zero");
+        require(totalPrice <= maxTotalPrice,   "EM: price exceeds max");
         uint256 fee        = (totalPrice * platformFeeBps) / 10000;
+
+        // Check payment upfront before any state changes or token transfers (CEI)
+        if (listing.paymentToken == address(0)) {
+            require(msg.value == totalPrice, "EM: incorrect ETH amount");
+        } else {
+            require(msg.value == 0, "EM: ETH not accepted for ERC-20 listing");
+        }
 
         listing.active = false;
         _listedAmounts[listing.seller][listing.tokenContract] -= listing.amount;
+
+        // Unfreeze before transfer — compliance gate in _update blocks frozen tokens
+        FractionalToken(payable(listing.tokenContract)).unfreezeTokens(listing.seller, listing.amount);
 
         // Transfer fractional tokens from seller directly to buyer (compliance gate fires inside).
         // slither-disable-next-line arbitrary-send-erc20
@@ -159,12 +208,10 @@ contract EscrowMarketplace is
 
         // Settle payment
         if (listing.paymentToken == address(0)) {
-            require(msg.value == totalPrice, "EM: incorrect ETH amount");
             _accruedFees[address(0)] += fee;
             (bool ok,) = listing.seller.call{value: totalPrice - fee}("");
             require(ok, "EM: ETH transfer failed");
         } else {
-            require(msg.value == 0, "EM: ETH not accepted for ERC-20 listing");
             IERC20(listing.paymentToken).safeTransferFrom(msg.sender, address(this), totalPrice);
             _accruedFees[listing.paymentToken] += fee;
             IERC20(listing.paymentToken).safeTransfer(listing.seller, totalPrice - fee);
@@ -178,7 +225,7 @@ contract EscrowMarketplace is
     /**
      * @notice Cancels an active listing. Only the seller or platform admin can cancel.
      */
-    function cancelListing(uint256 listingId) external whenNotPaused {
+    function cancelListing(uint256 listingId) external {
         Listing storage listing = _listings[listingId];
         require(listing.active, "EM: listing not active");
         require(
@@ -191,6 +238,8 @@ contract EscrowMarketplace is
 
         listing.active = false;
         _listedAmounts[seller][tokenContract] -= listing.amount;
+
+        FractionalToken(payable(tokenContract)).unfreezeTokens(seller, listing.amount);
 
         emit Cancelled(listingId, seller);
     }
@@ -210,6 +259,39 @@ contract EscrowMarketplace is
     }
 
     // Admin
+
+    function allowPaymentToken(address token) external onlyOwner {
+        require(token != address(0), "EM: use ETH (address(0)), already allowed");
+        require(token.code.length > 0, "EM: not a contract");
+        _allowedPaymentTokens[token] = true;
+        emit PaymentTokenAllowed(token);
+    }
+
+    function disallowPaymentToken(address token) external onlyOwner {
+        require(token != address(0), "EM: cannot disallow ETH");
+        _allowedPaymentTokens[token] = false;
+        emit PaymentTokenDisallowed(token);
+    }
+
+    /**
+     * @notice Admin recovery for a stuck listing (e.g. compliance rule change blocked settlement).
+     *         Cancels the listing and unfreezes the seller's tokens.
+     */
+    function emergencyAdminCancel(uint256 listingId) external onlyOwner nonReentrant {
+        Listing storage listing = _listings[listingId];
+        require(listing.active, "EM: listing not active");
+
+        address seller        = listing.seller;
+        address tokenContract = listing.tokenContract;
+        uint256 amount        = listing.amount;
+
+        listing.active = false;
+        _listedAmounts[seller][tokenContract] -= amount;
+
+        FractionalToken(payable(tokenContract)).unfreezeTokens(seller, amount);
+
+        emit Cancelled(listingId, seller);
+    }
 
     function setPlatformFee(uint16 newFeeBps) external onlyOwner {
         require(newFeeBps <= MAX_FEE_BPS, "EM: fee exceeds max");
@@ -252,19 +334,26 @@ contract EscrowMarketplace is
         return _nextListingId;
     }
 
+    function isPaymentTokenAllowed(address token) external view returns (bool) {
+        return token == address(0) || _allowedPaymentTokens[token];
+    }
+
     // Pause / upgrade
 
     function pause() external onlyOwner { _pause(); }
 
     function unpause() external onlyOwner { _unpause(); }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+    function _authorizeUpgrade(address newImplementation) internal override {
+        require(msg.sender == upgradeAdmin, "EM: caller not upgrade admin");
         require(newImplementation != address(0), "EM: zero implementation");
         require(newImplementation.code.length > 0, "EM: not a contract");
         emit ContractUpgraded(newImplementation);
     }
 
-    receive() external payable {}
+    receive() external payable {
+        revert("EM: no direct ETH");
+    }
 
-    uint256[50] private __gap;
+    uint256[47] private __gap;
 }
