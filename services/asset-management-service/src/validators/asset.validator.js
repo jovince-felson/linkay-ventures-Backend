@@ -25,16 +25,28 @@ const dynamicFieldSchema = Joi.object({
   parentId:    Joi.string().uuid().allow(null).optional(),
 }).options({ allowUnknown: false });
 
+const ASSET_TYPES = ['COLLECTIBLE', 'REAL_ESTATE', 'FINE_ART', 'LUXURY_ASSET', 'LUXURY_WATCH', 'OTHER'];
+
 export const createAssetSchema = Joi.object({
-  title:         Joi.string().min(3).max(500).required(),
+  title:         Joi.string().min(1).max(500).required(),
+  assetType:     Joi.string().valid(...ASSET_TYPES).required(),
   description:   Joi.string().max(10000).allow('', null).optional(),
-  assetType:     Joi.string().valid('COLLECTIBLE', 'REAL_ESTATE').required(),
+  valuation:     Joi.number().positive().allow(null).optional(),
+  jurisdiction:  Joi.string().max(200).allow('', null).optional(),
+  threeDFiles:   Joi.string().max(2000).allow('', null).optional(),
+  liveStream:    Joi.string().max(2000).allow('', null).optional(),
+  status:        Joi.string().valid('DRAFT').optional(),
   dynamicFields: Joi.array().items(dynamicFieldSchema).optional().default([]),
 });
 
 export const updateAssetSchema = Joi.object({
-  title:         Joi.string().min(3).max(500).optional(),
+  title:         Joi.string().min(1).max(500).optional(),
+  assetType:     Joi.string().valid(...ASSET_TYPES).optional(),
   description:   Joi.string().max(10000).allow('', null).optional(),
+  valuation:     Joi.number().positive().allow(null).optional(),
+  jurisdiction:  Joi.string().max(200).allow('', null).optional(),
+  threeDFiles:   Joi.string().max(2000).allow('', null).optional(),
+  liveStream:    Joi.string().max(2000).allow('', null).optional(),
   dynamicFields: Joi.array().items(dynamicFieldSchema).optional(),
 });
 
@@ -50,7 +62,7 @@ export const assetQuerySchema = Joi.object({
   page:      Joi.number().integer().min(1).default(1),
   limit:     Joi.number().integer().min(1).max(100).default(10),
   status:    Joi.string().valid('DRAFT', 'REVIEW', 'LIVE', 'ARCHIVED').optional(),
-  assetType: Joi.string().valid('COLLECTIBLE', 'REAL_ESTATE').optional(),
+  assetType: Joi.string().valid(...ASSET_TYPES).optional(),
   museumId:  Joi.number().integer().optional(),
   search:    Joi.string().max(200).optional(),
   sortBy:    Joi.string().valid('title', 'status', 'created_at', 'published_at').default('created_at'),

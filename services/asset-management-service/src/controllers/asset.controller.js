@@ -1,6 +1,5 @@
 import { Op }             from 'sequelize';
 import { v4 as uuidv4 }   from 'uuid';
-import axios              from 'axios';
 import sequelize          from '../config/database.js';
 import { Asset, AssetDynamicField, AssetOwnership, AssetTokenization } from '../models/index.js';
 import { assetEvents }    from '../events/asset.events.js';
@@ -84,21 +83,26 @@ export async function listLiveAssets(req, res) {
 
 // ── POST /assets ───────────────────────────────────────────────────────────────
 export async function createAsset(req, res) {
-  const { title, description, assetType, dynamicFields = [] } = req.body;
+  const { title, description, assetType, valuation, jurisdiction, dynamicFields = [] } = req.body;
   const userId   = req.user.userId;
   const museumId = req.user.museumId || req.user.userId;
+
+  const uploadedFiles = (req.files || []).map((f) => `/uploads/assets/${f.filename}`);
 
   const t = await sequelize.transaction();
   try {
     const asset = await Asset.create(
       {
         title,
-        slug:        generateSlug(title),
+        slug:         generateSlug(title),
         description,
         assetType,
-        status:      'DRAFT',
+        valuation:    valuation ? parseFloat(valuation) : null,
+        jurisdiction: jurisdiction || null,
+        mediaFiles:   uploadedFiles.length ? uploadedFiles : null,
+        status:       'DRAFT',
         museumId,
-        createdBy:   userId,
+        createdBy:    userId,
       },
       { transaction: t },
     );
@@ -165,13 +169,28 @@ export async function updateAsset(req, res) {
     return sendError(res, 'Cannot edit a LIVE or ARCHIVED asset', 409);
   }
 
-  const { title, description, dynamicFields } = req.body;
+  const { title, description, valuation, jurisdiction, dynamicFields } = req.body;
   const userId = req.user.userId;
 
   const t = await sequelize.transaction();
   try {
+    const files = req.files || [];
+    let mediaFiles;
+    if (files.length) {
+      const newPaths = files.map((f) => `/uploads/assets/${f.filename}`);
+      const existing = Array.isArray(asset.mediaFiles) ? asset.mediaFiles : [];
+      mediaFiles = [...existing, ...newPaths];
+    }
+
     await asset.update(
-      { title, description, updatedBy: userId },
+      {
+        title,
+        description,
+        valuation:    valuation !== undefined ? (valuation ? parseFloat(valuation) : null) : undefined,
+        jurisdiction: jurisdiction !== undefined ? (jurisdiction || null) : undefined,
+        ...(mediaFiles && { mediaFiles }),
+        updatedBy:    userId,
+      },
       { transaction: t },
     );
 
@@ -271,19 +290,8 @@ export async function publishAsset(req, res) {
     return sendError(res, `Asset is already ${asset.status}`, 409);
   }
 
-  let mediaList = [];
-  try {
-    const { data } = await axios.get(`${FILE_SERVICE_URL}/files`, {
-      params: { assetId: asset.id, mediaType: 'IMAGE' },
-      headers: { authorization: req.headers.authorization },
-      timeout: 5000,
-    });
-    mediaList = data?.data || [];
-  } catch (err) {
-    logger.warn(`Could not fetch media for asset ${asset.id}:`, err.message);
-  }
-
-  if (!mediaList.length) {
+  const existingMedia = Array.isArray(asset.mediaFiles) ? asset.mediaFiles : [];
+  if (!existingMedia.length) {
     return sendValidationError(res, ['At least one image is required before publishing']);
   }
 
@@ -317,17 +325,8 @@ export async function previewAsset(req, res) {
   });
   if (!asset) return sendNotFound(res, 'Asset not found');
 
-  let media = [];
-  try {
-    const { data } = await axios.get(`${FILE_SERVICE_URL}/files`, {
-      params: { assetId: asset.id },
-      headers: { authorization: req.headers.authorization },
-      timeout: 5000,
-    });
-    media = data?.data || [];
-  } catch (err) {
-    logger.warn(`Could not fetch media for preview of asset ${asset.id}:`, err.message);
-  }
+  // Media files are stored on the Asset record itself — no separate file service needed
+  const media = Array.isArray(asset.mediaFiles) ? asset.mediaFiles : [];
 
   return sendSuccess(res, {
     asset,

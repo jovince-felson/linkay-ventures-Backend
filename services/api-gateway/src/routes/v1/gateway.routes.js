@@ -182,6 +182,19 @@ router.use(
   }),
 );
 
+// ── Asset uploads — public (no JWT, for img src display) ────────────────────
+router.use(
+  "/uploads",
+  createProxyMiddleware({
+    target: SERVICESV1.ASSET_MANAGEMENT_SERVICE_URL,
+    changeOrigin: true,
+    proxyTimeout: 60000,
+    timeout: 60000,
+    pathRewrite: (path) => `/uploads${path}`,
+    on: { proxyRes: injectCors },
+  }),
+);
+
 // ── Asset Management routes ───────────────────────────────────────────────
 router.use("/api/v1/assets", verifyToken);
 router.use(

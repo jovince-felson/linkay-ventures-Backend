@@ -1,4 +1,5 @@
 import express          from 'express';
+import path             from 'path';
 import { errorHandler } from '../middlewares/error.middleware.js';
 import assetRoutes      from '../routes/v1/asset.routes.js';
 
@@ -7,6 +8,8 @@ export function createApp() {
 
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true }));
+
+  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
   app.use((req, _res, next) => {
     req.requestTime = new Date().toISOString();

@@ -25,9 +25,22 @@ Asset.init(
       allowNull: true,
     },
     assetType: {
-      type:         DataTypes.ENUM('COLLECTIBLE', 'REAL_ESTATE'),
+      type:         DataTypes.ENUM('COLLECTIBLE', 'REAL_ESTATE', 'FINE_ART', 'LUXURY_ASSET', 'LUXURY_WATCH', 'OTHER'),
       allowNull:    false,
       field:        'asset_type',
+    },
+    valuation: {
+      type:      DataTypes.DECIMAL(20, 2),
+      allowNull: true,
+    },
+    jurisdiction: {
+      type:      DataTypes.STRING(200),
+      allowNull: true,
+    },
+    mediaFiles: {
+      type:      DataTypes.JSON,
+      allowNull: true,
+      field:     'media_files',
     },
     status: {
       type:         DataTypes.ENUM('DRAFT', 'REVIEW', 'LIVE', 'ARCHIVED'),
