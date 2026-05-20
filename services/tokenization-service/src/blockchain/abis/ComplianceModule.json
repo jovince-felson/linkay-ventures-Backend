@@ -1,0 +1,13 @@
+[
+  {
+    "type": "function",
+    "name": "setJurisdictionRules",
+    "inputs": [
+      { "name": "assetId",              "type": "bytes32" },
+      { "name": "allowedJurisdictions", "type": "bytes2[]" },
+      { "name": "minEligibility",       "type": "uint8"   }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  }
+]

@@ -12,11 +12,15 @@ async function bootstrap() {
     await connectDatabase();
     logger.info('✅ Database connected');
 
-    await getProducer();
-    logger.info('✅ Kafka producer ready');
-
-    await initAssetConsumer();
-    logger.info('✅ Kafka consumers initialised');
+    // Kafka is optional — service runs without it, events just won't be published
+    try {
+      await getProducer();
+      logger.info('✅ Kafka producer ready');
+      await initAssetConsumer();
+      logger.info('✅ Kafka consumers initialised');
+    } catch (kafkaErr) {
+      logger.warn('⚠️  Kafka unavailable — running without event streaming:', kafkaErr.message);
+    }
 
     const app = createApp();
     app.listen(PORT, () => {

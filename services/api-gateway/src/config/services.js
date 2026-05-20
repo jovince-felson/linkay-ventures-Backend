@@ -4,4 +4,5 @@ export const SERVICESV1 = {
   EKYC_SERVICE_URL:              process.env.EKYC_SERVICE_URL              || "http://localhost:4004",
   ASSET_MANAGEMENT_SERVICE_URL:  process.env.ASSET_MANAGEMENT_SERVICE_URL  || "http://localhost:4006",
   FILE_UPLOAD_SERVICE_URL:       process.env.FILE_UPLOAD_SERVICE_URL       || "http://localhost:4007",
+  TOKENIZATION_SERVICE_URL:      process.env.TOKENIZATION_SERVICE_URL      || "http://localhost:4005",
 };

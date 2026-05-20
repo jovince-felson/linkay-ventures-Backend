@@ -1,105 +1,44 @@
-import axios from 'axios';
-import { Asset, AssetOwnership, AssetTokenization } from '../models/index.js';
-import { assetEvents }        from '../events/asset.events.js';
-import { uploadMetadataToIPFS, buildAssetMetadata } from '../utils/ipfs.js';
-import { buildMintPayload, sendMintRequest }        from '../utils/blockchain.js';
-import { sendSuccess, sendNotFound, sendError }     from '../utils/response.js';
-import { logger } from 'linkay-shared-utils';
+import axios                              from 'axios';
+import { sendSuccess, sendNotFound, sendError } from '../utils/response.js';
+import { logger }                          from 'linkay-shared-utils';
 
-const FILE_SERVICE_URL = process.env.FILE_SERVICE_URL || 'http://file-service:4007/api/v1';
+const TOKENIZATION_SERVICE_URL = process.env.TOKENIZATION_SERVICE_URL || 'http://tokenization-service:4005';
 
-// ── POST /assets/:id/tokenize ─────────────────────────────────────────────────
+// ── POST /assets/tokenize/:assetId ────────────────────────────────────────────
+// Proxies to tokenization-service. Kept for backwards compatibility.
 export async function tokenizeAsset(req, res) {
-  const asset = await Asset.findByPk(req.params.assetId, {
-    include: [{ model: AssetOwnership, as: 'ownershipSplit', paranoid: false }],
-  });
-  if (!asset) return sendNotFound(res, 'Asset not found');
-
-  if (asset.status !== 'LIVE') {
-    return sendError(res, 'Only LIVE assets can be tokenized', 422);
-  }
-
-  const existing = await AssetTokenization.findOne({ where: { assetId: asset.id } });
-  if (existing && existing.tokenizationStatus === 'COMPLETED') {
-    return sendError(res, 'Asset already tokenized', 409);
-  }
-
-  // Get primary image URL from file service
-  let primaryImageUrl = '';
   try {
-    const { data } = await axios.get(`${FILE_SERVICE_URL}/files`, {
-      params: { assetId: asset.id, isPrimary: true },
-      headers: { authorization: req.headers.authorization },
-      timeout: 5000,
-    });
-    primaryImageUrl = data?.data?.[0]?.fileUrl || '';
+    const { data } = await axios.post(
+      `${TOKENIZATION_SERVICE_URL}/api/v1/tokenization/mint`,
+      { assetId: req.params.assetId, network: req.body.network },
+      {
+        headers: { authorization: req.headers.authorization },
+        timeout: 15000,
+      },
+    );
+    return res.status(data.success ? 201 : 400).json(data);
   } catch (err) {
-    logger.warn(`Could not fetch primary image for asset ${asset.id}:`, err.message);
+    const status  = err.response?.status  || 502;
+    const message = err.response?.data?.message || 'Tokenization service unavailable';
+    logger.error('Tokenization proxy error:', err.message);
+    return sendError(res, message, status);
   }
-
-  const ownershipSplit = {
-    museum:    0,
-    investors: 0,
-  };
-  for (const o of asset.ownershipSplit || []) {
-    if (o.ownerType === 'MUSEUM')    ownershipSplit.museum    += parseFloat(o.percentage);
-    if (o.ownerType === 'INVESTOR')  ownershipSplit.investors += parseFloat(o.percentage);
-  }
-
-  const metadata = buildAssetMetadata(asset, ownershipSplit, primaryImageUrl);
-
-  let ipfsCid, metadataUrl;
-  try {
-    ({ ipfsCid, metadataUrl } = await uploadMetadataToIPFS(metadata));
-  } catch (err) {
-    logger.error('IPFS upload failed:', err.message);
-    return sendError(res, 'IPFS metadata upload failed', 502);
-  }
-
-  const tokenizationRecord = existing
-    ? await existing.update({
-        ipfsCid,
-        metadataUrl,
-        metadataJson:       metadata,
-        tokenizationStatus: 'PROCESSING',
-        blockchainNetwork:  req.body.blockchainNetwork || 'ethereum',
-        requestedBy:        req.user.userId,
-        errorMessage:       null,
-      })
-    : await AssetTokenization.create({
-        assetId:            asset.id,
-        ipfsCid,
-        metadataUrl,
-        metadataJson:       metadata,
-        tokenizationStatus: 'PROCESSING',
-        blockchainNetwork:  req.body.blockchainNetwork || 'ethereum',
-        requestedBy:        req.user.userId,
-      });
-
-  const mintPayload = buildMintPayload(asset, tokenizationRecord);
-  await tokenizationRecord.update({ mintPayload });
-
-  assetEvents.tokenizationRequested(asset, tokenizationRecord).catch(() => {});
-
-  // Fire-and-forget to tokenization service
-  sendMintRequest(mintPayload).catch((err) => {
-    logger.error(`Mint request failed for asset ${asset.id}:`, err.message);
-  });
-
-  return sendSuccess(res, {
-    tokenizationId:     tokenizationRecord.id,
-    ipfsCid,
-    metadataUrl,
-    tokenizationStatus: tokenizationRecord.tokenizationStatus,
-    mintPayload,
-  }, 'Tokenization initiated. Metadata uploaded to IPFS.');
 }
 
-// ── GET /assets/:id/tokenization ──────────────────────────────────────────────
+// ── GET /assets/tokenization-status/:assetId ─────────────────────────────────
 export async function getTokenizationStatus(req, res) {
-  const tokenization = await AssetTokenization.findOne({
-    where: { assetId: req.params.assetId },
-  });
-  if (!tokenization) return sendNotFound(res, 'Tokenization record not found');
-  return sendSuccess(res, tokenization);
+  try {
+    const { data } = await axios.get(
+      `${TOKENIZATION_SERVICE_URL}/api/v1/tokenization/status/${req.params.assetId}`,
+      {
+        headers: { authorization: req.headers.authorization },
+        timeout: 10000,
+      },
+    );
+    return res.status(200).json(data);
+  } catch (err) {
+    if (err.response?.status === 404) return sendNotFound(res, 'Tokenization job not found');
+    logger.error('Tokenization status proxy error:', err.message);
+    return sendError(res, 'Tokenization service unavailable', 502);
+  }
 }

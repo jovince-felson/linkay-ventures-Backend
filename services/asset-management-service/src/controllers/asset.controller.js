@@ -83,7 +83,11 @@ export async function listLiveAssets(req, res) {
 
 // ── POST /assets ───────────────────────────────────────────────────────────────
 export async function createAsset(req, res) {
-  const { title, description, assetType, valuation, jurisdiction, dynamicFields = [] } = req.body;
+  const {
+    title, description, assetType, valuation, jurisdiction, dynamicFields = [],
+    historicalContext, totalFractions, tokenizedPercent, retainedPercent,
+    pricePerFraction, conditionReport, certificationRef, royaltyPercent, royaltyWallet,
+  } = req.body;
   const userId   = req.user.userId;
   const museumId = req.user.museumId || req.user.userId;
 
@@ -94,15 +98,24 @@ export async function createAsset(req, res) {
     const asset = await Asset.create(
       {
         title,
-        slug:         generateSlug(title),
+        slug:              generateSlug(title),
         description,
         assetType,
-        valuation:    valuation ? parseFloat(valuation) : null,
-        jurisdiction: jurisdiction || null,
-        mediaFiles:   uploadedFiles.length ? uploadedFiles : null,
-        status:       'DRAFT',
+        valuation:         valuation ? parseFloat(valuation) : null,
+        jurisdiction:      jurisdiction || null,
+        mediaFiles:        uploadedFiles.length ? uploadedFiles : null,
+        status:            'DRAFT',
         museumId,
-        createdBy:    userId,
+        createdBy:         userId,
+        historicalContext: historicalContext || null,
+        totalFractions:    totalFractions    || null,
+        tokenizedPercent:  tokenizedPercent  ?? null,
+        retainedPercent:   retainedPercent   ?? null,
+        pricePerFraction:  pricePerFraction  || null,
+        conditionReport:   conditionReport   || null,
+        certificationRef:  certificationRef  || null,
+        royaltyPercent:    royaltyPercent    ?? null,
+        royaltyWallet:     royaltyWallet     || null,
       },
       { transaction: t },
     );
@@ -169,7 +182,11 @@ export async function updateAsset(req, res) {
     return sendError(res, 'Cannot edit a LIVE or ARCHIVED asset', 409);
   }
 
-  const { title, description, valuation, jurisdiction, dynamicFields } = req.body;
+  const {
+    title, description, valuation, jurisdiction, dynamicFields,
+    historicalContext, totalFractions, tokenizedPercent, retainedPercent,
+    pricePerFraction, conditionReport, certificationRef, royaltyPercent, royaltyWallet,
+  } = req.body;
   const userId = req.user.userId;
 
   const t = await sequelize.transaction();
@@ -186,10 +203,19 @@ export async function updateAsset(req, res) {
       {
         title,
         description,
-        valuation:    valuation !== undefined ? (valuation ? parseFloat(valuation) : null) : undefined,
-        jurisdiction: jurisdiction !== undefined ? (jurisdiction || null) : undefined,
+        valuation:         valuation         !== undefined ? (valuation ? parseFloat(valuation) : null) : undefined,
+        jurisdiction:      jurisdiction       !== undefined ? (jurisdiction || null)       : undefined,
+        historicalContext: historicalContext  !== undefined ? (historicalContext || null)  : undefined,
+        totalFractions:    totalFractions     !== undefined ? (totalFractions || null)     : undefined,
+        tokenizedPercent:  tokenizedPercent   !== undefined ? (tokenizedPercent ?? null)   : undefined,
+        retainedPercent:   retainedPercent    !== undefined ? (retainedPercent ?? null)    : undefined,
+        pricePerFraction:  pricePerFraction   !== undefined ? (pricePerFraction || null)   : undefined,
+        conditionReport:   conditionReport    !== undefined ? (conditionReport || null)    : undefined,
+        certificationRef:  certificationRef   !== undefined ? (certificationRef || null)   : undefined,
+        royaltyPercent:    royaltyPercent     !== undefined ? (royaltyPercent ?? null)     : undefined,
+        royaltyWallet:     royaltyWallet      !== undefined ? (royaltyWallet || null)      : undefined,
         ...(mediaFiles && { mediaFiles }),
-        updatedBy:    userId,
+        updatedBy:         userId,
       },
       { transaction: t },
     );
