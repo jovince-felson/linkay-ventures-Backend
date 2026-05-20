@@ -209,6 +209,20 @@ router.use(
   }),
 );
 
+// ── Tokenization routes ───────────────────────────────────────────────────
+router.use("/api/v1/tokenization", verifyToken);
+router.use(
+  "/api/v1/tokenization",
+  createProxyMiddleware({
+    target: SERVICESV1.TOKENIZATION_SERVICE_URL,
+    changeOrigin: true,
+    proxyTimeout: 60000,
+    timeout: 60000,
+    pathRewrite: (path) => `/api/v1/tokenization${path}`,
+    on: { proxyRes: injectCors },
+  }),
+);
+
 // ── Admin routes (proxied to auth-service) ────────────────────────────────
 router.use("/api/v1/admin", verifyToken);
 router.use(

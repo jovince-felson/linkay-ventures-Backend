@@ -1,0 +1,31 @@
+[
+  {
+    "type": "function",
+    "name": "deployFractionalToken",
+    "inputs": [
+      { "name": "name",              "type": "string"  },
+      { "name": "symbol",            "type": "string"  },
+      { "name": "totalSupply",       "type": "uint256" },
+      { "name": "assetId",           "type": "bytes32" },
+      { "name": "treasuryWallet",    "type": "address"  },
+      { "name": "assetOwnerWallet",  "type": "address"  },
+      { "name": "tokenizeBps",       "type": "uint16"  }
+    ],
+    "outputs": [
+      { "name": "tokenContract", "type": "address" }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "FractionalTokenDeployed",
+    "inputs": [
+      { "name": "assetId",       "type": "bytes32", "indexed": true  },
+      { "name": "tokenContract", "type": "address", "indexed": true  },
+      { "name": "name",          "type": "string",  "indexed": false },
+      { "name": "symbol",        "type": "string",  "indexed": false },
+      { "name": "totalSupply",   "type": "uint256", "indexed": false },
+      { "name": "tokenizeBps",   "type": "uint16",  "indexed": false }
+    ]
+  }
+]

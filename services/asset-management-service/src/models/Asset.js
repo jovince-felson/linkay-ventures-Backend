@@ -72,6 +72,81 @@ Asset.init(
       allowNull: true,
       field:     'archived_at',
     },
+
+    // ── Input fields for tokenization worker ─────────────────────────────────
+    historicalContext: {
+      type:      DataTypes.TEXT,
+      allowNull: true,
+      field:     'historical_context',
+    },
+    totalFractions: {
+      type:      DataTypes.INTEGER.UNSIGNED,
+      allowNull: true,
+      field:     'total_fractions',
+    },
+    tokenizedPercent: {
+      type:      DataTypes.DECIMAL(5, 2),
+      allowNull: true,
+      field:     'tokenized_percent',
+    },
+    retainedPercent: {
+      type:      DataTypes.DECIMAL(5, 2),
+      allowNull: true,
+      field:     'retained_percent',
+    },
+    pricePerFraction: {
+      type:      DataTypes.DECIMAL(20, 2),
+      allowNull: true,
+      field:     'price_per_fraction',
+    },
+    conditionReport: {
+      type:      DataTypes.TEXT,
+      allowNull: true,
+      field:     'condition_report',
+    },
+    certificationRef: {
+      type:      DataTypes.STRING(200),
+      allowNull: true,
+      field:     'certification_ref',
+    },
+    royaltyPercent: {
+      type:      DataTypes.INTEGER.UNSIGNED,
+      allowNull: true,
+      field:     'royalty_percent',
+    },
+    royaltyWallet: {
+      type:      DataTypes.STRING(42),
+      allowNull: true,
+      field:     'royalty_wallet',
+    },
+
+    // ── Output fields written by tokenization worker ──────────────────────────
+    ipfsMetadataUri: {
+      type:      DataTypes.STRING(500),
+      allowNull: true,
+      field:     'ipfs_metadata_uri',
+    },
+    nftContractAddress: {
+      type:      DataTypes.STRING(42),
+      allowNull: true,
+      field:     'nft_contract_address',
+    },
+    nftTokenId: {
+      type:      DataTypes.INTEGER.UNSIGNED,
+      allowNull: true,
+      field:     'nft_token_id',
+    },
+    erc3643ContractAddress: {
+      type:      DataTypes.STRING(42),
+      allowNull: true,
+      field:     'erc3643_contract_address',
+    },
+    complianceConfigured: {
+      type:         DataTypes.BOOLEAN,
+      allowNull:    false,
+      defaultValue: false,
+      field:        'compliance_configured',
+    },
   },
   {
     sequelize,

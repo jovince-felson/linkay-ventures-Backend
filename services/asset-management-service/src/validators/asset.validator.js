@@ -28,26 +28,48 @@ const dynamicFieldSchema = Joi.object({
 const ASSET_TYPES = ['COLLECTIBLE', 'REAL_ESTATE', 'FINE_ART', 'LUXURY_ASSET', 'LUXURY_WATCH', 'OTHER'];
 
 export const createAssetSchema = Joi.object({
-  title:         Joi.string().min(1).max(500).required(),
-  assetType:     Joi.string().valid(...ASSET_TYPES).required(),
-  description:   Joi.string().max(10000).allow('', null).optional(),
-  valuation:     Joi.number().positive().allow(null).optional(),
-  jurisdiction:  Joi.string().max(200).allow('', null).optional(),
-  threeDFiles:   Joi.string().max(2000).allow('', null).optional(),
-  liveStream:    Joi.string().max(2000).allow('', null).optional(),
-  status:        Joi.string().valid('DRAFT').optional(),
-  dynamicFields: Joi.array().items(dynamicFieldSchema).optional().default([]),
+  title:             Joi.string().min(1).max(500).required(),
+  assetType:         Joi.string().valid(...ASSET_TYPES).required(),
+  description:       Joi.string().max(10000).allow('', null).optional(),
+  valuation:         Joi.number().positive().allow(null).optional(),
+  jurisdiction:      Joi.string().max(200).allow('', null).optional(),
+  threeDFiles:       Joi.string().max(2000).allow('', null).optional(),
+  liveStream:        Joi.string().max(2000).allow('', null).optional(),
+  status:            Joi.string().valid('DRAFT').optional(),
+  dynamicFields:     Joi.array().items(dynamicFieldSchema).optional().default([]),
+
+  // tokenization fields
+  historicalContext: Joi.string().max(10000).allow('', null).optional(),
+  totalFractions:    Joi.number().integer().min(1).allow(null).optional(),
+  tokenizedPercent:  Joi.number().min(0).max(100).allow(null).optional(),
+  retainedPercent:   Joi.number().min(0).max(100).allow(null).optional(),
+  pricePerFraction:  Joi.number().positive().allow(null).optional(),
+  conditionReport:   Joi.string().max(10000).allow('', null).optional(),
+  certificationRef:  Joi.string().max(200).allow('', null).optional(),
+  royaltyPercent:    Joi.number().integer().min(0).max(100).allow(null).optional(),
+  royaltyWallet:     Joi.string().length(42).pattern(/^0x[a-fA-F0-9]{40}$/).allow('', null).optional(),
 });
 
 export const updateAssetSchema = Joi.object({
-  title:         Joi.string().min(1).max(500).optional(),
-  assetType:     Joi.string().valid(...ASSET_TYPES).optional(),
-  description:   Joi.string().max(10000).allow('', null).optional(),
-  valuation:     Joi.number().positive().allow(null).optional(),
-  jurisdiction:  Joi.string().max(200).allow('', null).optional(),
-  threeDFiles:   Joi.string().max(2000).allow('', null).optional(),
-  liveStream:    Joi.string().max(2000).allow('', null).optional(),
-  dynamicFields: Joi.array().items(dynamicFieldSchema).optional(),
+  title:             Joi.string().min(1).max(500).optional(),
+  assetType:         Joi.string().valid(...ASSET_TYPES).optional(),
+  description:       Joi.string().max(10000).allow('', null).optional(),
+  valuation:         Joi.number().positive().allow(null).optional(),
+  jurisdiction:      Joi.string().max(200).allow('', null).optional(),
+  threeDFiles:       Joi.string().max(2000).allow('', null).optional(),
+  liveStream:        Joi.string().max(2000).allow('', null).optional(),
+  dynamicFields:     Joi.array().items(dynamicFieldSchema).optional(),
+
+  // tokenization fields
+  historicalContext: Joi.string().max(10000).allow('', null).optional(),
+  totalFractions:    Joi.number().integer().min(1).allow(null).optional(),
+  tokenizedPercent:  Joi.number().min(0).max(100).allow(null).optional(),
+  retainedPercent:   Joi.number().min(0).max(100).allow(null).optional(),
+  pricePerFraction:  Joi.number().positive().allow(null).optional(),
+  conditionReport:   Joi.string().max(10000).allow('', null).optional(),
+  certificationRef:  Joi.string().max(200).allow('', null).optional(),
+  royaltyPercent:    Joi.number().integer().min(0).max(100).allow(null).optional(),
+  royaltyWallet:     Joi.string().length(42).pattern(/^0x[a-fA-F0-9]{40}$/).allow('', null).optional(),
 });
 
 export const upsertDynamicFieldsSchema = Joi.object({
