@@ -33,15 +33,38 @@ contract ClaimTopicsRegistry is
         _disableInitializers();
     }
 
-    function initialize(address admin) external initializer {
+    address public upgradeAdmin;
+    address public pendingUpgradeAdmin;
+
+    event UpgradeAdminTransferred(address indexed previous, address indexed next);
+    event UpgradeAdminProposed(address indexed proposed);
+
+    function initialize(address admin, address _upgradeAdmin) external initializer {
         __Ownable_init(admin);
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
         __Pausable_init();
 
+        require(_upgradeAdmin != address(0), "CTR: zero upgrade admin");
+        upgradeAdmin = _upgradeAdmin;
+
         _addTopic(1); // KYC_VERIFIED
         _addTopic(2); // ACCREDITED_INVESTOR
         _addTopic(3); // JURISDICTION_ELIGIBLE
+    }
+
+    function proposeUpgradeAdmin(address newAdmin) external {
+        require(msg.sender == upgradeAdmin, "CTR: caller not upgrade admin");
+        require(newAdmin != address(0), "CTR: zero address");
+        pendingUpgradeAdmin = newAdmin;
+        emit UpgradeAdminProposed(newAdmin);
+    }
+
+    function acceptUpgradeAdmin() external {
+        require(msg.sender == pendingUpgradeAdmin, "CTR: caller not pending upgrade admin");
+        emit UpgradeAdminTransferred(upgradeAdmin, msg.sender);
+        upgradeAdmin = msg.sender;
+        pendingUpgradeAdmin = address(0);
     }
 
     // Admin functions
@@ -90,9 +113,10 @@ contract ClaimTopicsRegistry is
         emit ClaimTopicAdded(claimTopic);
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
-        require(newImplementation != address(0), "CTR: zero implementation");
-        require(newImplementation.code.length > 0, "CTR: not a contract");
+    function _authorizeUpgrade(address newImplementation) internal override {
+        require(msg.sender == upgradeAdmin,          "CTR: caller not upgrade admin");
+        require(newImplementation != address(0),     "CTR: zero implementation");
+        require(newImplementation.code.length > 0,   "CTR: not a contract");
         emit ContractUpgraded(newImplementation);
     }
 
@@ -102,5 +126,5 @@ contract ClaimTopicsRegistry is
     }
 
     // Storage gap for upgrades
-    uint256[50] private __gap;
+    uint256[48] private __gap;
 }

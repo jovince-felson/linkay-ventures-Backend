@@ -41,6 +41,9 @@ contract FractionalToken is
     // Authorized agents (backend signers for freeze/unfreeze/forcedTransfer)
     mapping(address => bool) private _agents;
 
+    address public upgradeAdmin;
+    address public pendingUpgradeAdmin;
+
     // Events
     event InitialSupplyMinted(address indexed treasury, address indexed assetOwner, uint256 publicAmount, uint256 retainedAmount, uint16 tokenizeBps);
     event TokensFrozen(address indexed wallet, uint256 amount, address indexed agent);
@@ -50,6 +53,8 @@ contract FractionalToken is
     event AgentRemoved(address indexed agent);
     event ComplianceModuleUpdated(address indexed newModule);
     event ContractUpgraded(address indexed newImplementation);
+    event UpgradeAdminTransferred(address indexed previous, address indexed next);
+    event UpgradeAdminProposed(address indexed proposed);
 
     // Modifiers
     modifier onlyAgent() {
@@ -69,7 +74,8 @@ contract FractionalToken is
         bytes32 _assetId,
         address _identityRegistry,
         address _complianceModule,
-        address admin
+        address admin,
+        address _upgradeAdmin
     ) external initializer {
         __ERC20_init(name, symbol);
         __Ownable_init(admin);
@@ -80,11 +86,27 @@ contract FractionalToken is
         require(_totalSupplyCap > 0, "FT: zero supply cap");
         require(_identityRegistry != address(0), "FT: zero IR");
         require(_complianceModule  != address(0), "FT: zero CM");
+        require(_upgradeAdmin      != address(0), "FT: zero upgrade admin");
 
-        assetId         = _assetId;
-        totalSupplyCap  = _totalSupplyCap;
+        assetId          = _assetId;
+        totalSupplyCap   = _totalSupplyCap;
         identityRegistry = IdentityRegistry(payable(_identityRegistry));
         complianceModule = ComplianceModule(payable(_complianceModule));
+        upgradeAdmin     = _upgradeAdmin;
+    }
+
+    function proposeUpgradeAdmin(address newAdmin) external {
+        require(msg.sender == upgradeAdmin, "FT: caller not upgrade admin");
+        require(newAdmin != address(0), "FT: zero address");
+        pendingUpgradeAdmin = newAdmin;
+        emit UpgradeAdminProposed(newAdmin);
+    }
+
+    function acceptUpgradeAdmin() external {
+        require(msg.sender == pendingUpgradeAdmin, "FT: caller not pending upgrade admin");
+        emit UpgradeAdminTransferred(upgradeAdmin, msg.sender);
+        upgradeAdmin = msg.sender;
+        pendingUpgradeAdmin = address(0);
     }
 
     //  Mint (one-time, called by factory in job step 5) 
@@ -139,7 +161,7 @@ contract FractionalToken is
         require(amount <= unfrozen, "FT: insufficient unfrozen balance");
 
         // Validate via compliance module
-        (bool valid, string memory reason) = complianceModule.isTransferValid(assetId, from, to, amount);
+        (bool valid, string memory reason) = complianceModule.isTransferValid(assetId, address(this), from, to, amount);
         require(valid, reason);
     }
 
@@ -167,8 +189,10 @@ contract FractionalToken is
     //  Forced transfer (admin only, dual approval required off-chain) 
 
     /**
-     * @notice Bypasses normal transfer restrictions. For regulatory or court-order use only.
-     *         Reduces frozen balance proportionally if the sender has frozen tokens.
+     * @notice Bypasses compliance module entirely. For regulatory seizure or court-order use only.
+     *         Intentionally skips KYC, jurisdiction, and lock-up checks — the from wallet may have
+     *         been KYC-revoked, which is exactly the scenario this function exists for.
+     *         Reduces frozen balance proportionally so venue state stays consistent.
      */
     function forcedTransfer(address from, address to, uint256 amount)
         external
@@ -179,15 +203,15 @@ contract FractionalToken is
         require(from != address(0) && to != address(0), "FT: zero address");
         require(amount > 0, "FT: zero amount");
         require(balanceOf(from) >= amount, "FT: insufficient balance");
-        require(identityRegistry.isVerified(to), "FT: recipient not KYC verified");
 
-        // Reduce frozen balance proportionally if needed
+        // Clear frozen balance proportionally so venue accounting stays consistent
         if (_frozenTokens[from] > 0) {
             uint256 deductFrozen = amount < _frozenTokens[from] ? amount : _frozenTokens[from];
             _frozenTokens[from] -= deductFrozen;
         }
 
-        _transfer(from, to, amount);
+        // Bypass FractionalToken._update (compliance gate) — call ERC20 layer directly
+        ERC20Upgradeable._update(from, to, amount);
         emit ForcedTransfer(from, to, amount, msg.sender);
     }
 
@@ -216,8 +240,10 @@ contract FractionalToken is
         return _agents[account];
     }
 
-    // Compliance module update
-    function setComplianceModule(address newModule) external onlyOwner {
+    // Compliance module update — gated by upgradeAdmin (timelock) because swapping the
+    // compliance module is equivalent in risk to upgrading the contract itself.
+    function setComplianceModule(address newModule) external {
+        require(msg.sender == upgradeAdmin, "FT: caller not upgrade admin");
         require(newModule != address(0), "FT: zero module");
         require(newModule.code.length > 0, "FT: not a contract");
         complianceModule = ComplianceModule(payable(newModule));
@@ -233,7 +259,8 @@ contract FractionalToken is
         _unpause();
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+    function _authorizeUpgrade(address newImplementation) internal override {
+        require(msg.sender == upgradeAdmin, "FT: caller not upgrade admin");
         require(newImplementation != address(0), "FT: zero implementation");
         require(newImplementation.code.length > 0, "FT: not a contract");
         emit ContractUpgraded(newImplementation);
@@ -245,5 +272,5 @@ contract FractionalToken is
     }
 
     // Storage gap for upgrades
-    uint256[50] private __gap;
+    uint256[48] private __gap;
 }

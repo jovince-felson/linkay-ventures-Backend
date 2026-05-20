@@ -24,9 +24,7 @@ contract IdentityRegistry is
 {
     struct Claim {
         uint256 topic;
-        uint256 scheme;      // 1 = ECDSA
         address issuer;
-        bytes   signature;
         bytes   data;
         string  uri;
     }
@@ -66,21 +64,44 @@ contract IdentityRegistry is
         _disableInitializers();
     }
 
+    address public upgradeAdmin;
+    address public pendingUpgradeAdmin;
+
+    event UpgradeAdminTransferred(address indexed previous, address indexed next);
+    event UpgradeAdminProposed(address indexed proposed);
+
     function initialize(
         address admin,
         address _claimTopicsRegistry,
-        address _trustedIssuersRegistry
+        address _trustedIssuersRegistry,
+        address _upgradeAdmin
     ) external initializer {
         __Ownable_init(admin);
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
         __Pausable_init();
 
-        require(_claimTopicsRegistry != address(0), "IR: zero CTR address");
+        require(_claimTopicsRegistry    != address(0), "IR: zero CTR address");
         require(_trustedIssuersRegistry != address(0), "IR: zero TIR address");
+        require(_upgradeAdmin           != address(0), "IR: zero upgrade admin");
 
         claimTopicsRegistry    = ClaimTopicsRegistry(payable(_claimTopicsRegistry));
         trustedIssuersRegistry = TrustedIssuersRegistry(payable(_trustedIssuersRegistry));
+        upgradeAdmin = _upgradeAdmin;
+    }
+
+    function proposeUpgradeAdmin(address newAdmin) external {
+        require(msg.sender == upgradeAdmin, "IR: caller not upgrade admin");
+        require(newAdmin != address(0), "IR: zero address");
+        pendingUpgradeAdmin = newAdmin;
+        emit UpgradeAdminProposed(newAdmin);
+    }
+
+    function acceptUpgradeAdmin() external {
+        require(msg.sender == pendingUpgradeAdmin, "IR: caller not pending upgrade admin");
+        emit UpgradeAdminTransferred(upgradeAdmin, msg.sender);
+        upgradeAdmin = msg.sender;
+        pendingUpgradeAdmin = address(0);
     }
 
     //  Identity management (onlyTrustedIssuer) 
@@ -136,19 +157,17 @@ contract IdentityRegistry is
     /**
      * @notice Writes a compliance claim to a wallet. Caller must be a registered Trusted Issuer
      *         authorized for the given topic. Called after Sumsub GREEN result.
+     *         Trust model: security is enforced by onlyTrustedIssuer (access control).
+     *         The calling address is the cryptographic proof — no separate signature required.
      *
-     * @param wallet    Investor wallet address
-     * @param topic     Claim topic (1=KYC_VERIFIED, 2=ACCREDITED_INVESTOR, 3=JURISDICTION_ELIGIBLE)
-     * @param scheme    Signature scheme (1 = ECDSA)
-     * @param signature Issuer signature over (wallet, topic, data)
-     * @param data      Encoded claim data (jurisdiction, risk score, expiry)
-     * @param uri       Optional off-chain reference URI
+     * @param wallet Investor wallet address
+     * @param topic  Claim topic (1=KYC_VERIFIED, 2=ACCREDITED_INVESTOR, 3=JURISDICTION_ELIGIBLE)
+     * @param data   Encoded claim data (e.g. abi.encodePacked(jurisdictionBytes2))
+     * @param uri    Optional off-chain reference URI (e.g. Sumsub report link)
      */
     function addClaim(
         address wallet,
         uint256 topic,
-        uint256 scheme,
-        bytes calldata signature,
         bytes calldata data,
         string calldata uri
     ) external onlyTrustedIssuer whenNotPaused {
@@ -162,12 +181,10 @@ contract IdentityRegistry is
         bool isUpdate = _identities[wallet].hasTopic[topic];
 
         _identities[wallet].claims[topic] = Claim({
-            topic:     topic,
-            scheme:    scheme,
-            issuer:    msg.sender,
-            signature: signature,
-            data:      data,
-            uri:       uri
+            topic:  topic,
+            issuer: msg.sender,
+            data:   data,
+            uri:    uri
         });
 
         if (!isUpdate) {
@@ -220,16 +237,14 @@ contract IdentityRegistry is
         view
         returns (
             uint256 _topic,
-            uint256 scheme,
             address issuer,
-            bytes memory signature,
             bytes memory data,
             string memory uri
         )
     {
         require(_identities[wallet].hasTopic[topic], "IR: claim not found");
         Claim storage c = _identities[wallet].claims[topic];
-        return (c.topic, c.scheme, c.issuer, c.signature, c.data, c.uri);
+        return (c.topic, c.issuer, c.data, c.uri);
     }
 
     function isRegistered(address wallet) external view returns (bool) {
@@ -244,6 +259,32 @@ contract IdentityRegistry is
         return _registeredWallets;
     }
 
+    /**
+     * @notice Paginated variant of getRegisteredWallets. Use this on mainnet to avoid
+     *         out-of-gas when the registry grows large.
+     * @param offset  Index of the first wallet to return.
+     * @param limit   Maximum number of wallets to return per page.
+     * @return wallets  Slice of the registry for the requested page.
+     * @return total    Total number of registered wallets (for client-side pagination).
+     */
+    function getRegisteredWalletsPaginated(uint256 offset, uint256 limit)
+        external
+        view
+        returns (address[] memory wallets, uint256 total)
+    {
+        total = _registeredWallets.length;
+        if (offset >= total || limit == 0) {
+            return (new address[](0), total);
+        }
+        uint256 end = offset + limit;
+        if (end > total) end = total;
+        uint256 size = end - offset;
+        wallets = new address[](size);
+        for (uint256 i = 0; i < size; i++) {
+            wallets[i] = _registeredWallets[offset + i];
+        }
+    }
+
     //  Emergency pause (Gnosis Safe only via owner) 
 
     function pause() external onlyOwner {
@@ -254,7 +295,8 @@ contract IdentityRegistry is
         _unpause();
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+    function _authorizeUpgrade(address newImplementation) internal override {
+        require(msg.sender == upgradeAdmin, "IR: caller not upgrade admin");
         require(newImplementation != address(0), "IR: zero implementation");
         require(newImplementation.code.length > 0, "IR: not a contract");
         emit ContractUpgraded(newImplementation);
@@ -266,5 +308,5 @@ contract IdentityRegistry is
     }
 
     // Storage gap for upgrades
-    uint256[50] private __gap;
+    uint256[48] private __gap;
 }

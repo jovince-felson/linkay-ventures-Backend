@@ -29,3 +29,9 @@ coverage/
 *.pem
 *.key
 *.crt
+
+# Blockchain — local docs and diagrams (not part of the repo)
+*.pdf
+*.drawio
+check.md
+Blockchain_Developer_PRD.md

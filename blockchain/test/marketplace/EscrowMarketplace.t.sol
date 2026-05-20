@@ -45,43 +45,50 @@ contract EscrowMarketplaceTest is Test {
 
         ctr = ClaimTopicsRegistry(payable(address(new ERC1967Proxy(
             address(new ClaimTopicsRegistry()),
-            abi.encodeWithSelector(ClaimTopicsRegistry.initialize.selector, admin)
+            abi.encodeWithSelector(ClaimTopicsRegistry.initialize.selector, admin, admin)
         ))));
         ctr.removeClaimTopic(2);
 
         tir = TrustedIssuersRegistry(payable(address(new ERC1967Proxy(
             address(new TrustedIssuersRegistry()),
-            abi.encodeWithSelector(TrustedIssuersRegistry.initialize.selector, admin)
+            abi.encodeWithSelector(TrustedIssuersRegistry.initialize.selector, admin, admin)
         ))));
         tir.addTrustedIssuer(issuer, topics);
 
         ir = IdentityRegistry(payable(address(new ERC1967Proxy(
             address(new IdentityRegistry()),
-            abi.encodeWithSelector(IdentityRegistry.initialize.selector, admin, address(ctr), address(tir))
+            abi.encodeWithSelector(IdentityRegistry.initialize.selector, admin, address(ctr), address(tir), admin)
         ))));
 
         cm = ComplianceModule(payable(address(new ERC1967Proxy(
             address(new ComplianceModule()),
-            abi.encodeWithSelector(ComplianceModule.initialize.selector, admin, address(ir))
+            abi.encodeWithSelector(ComplianceModule.initialize.selector, admin, address(ir), admin)
         ))));
 
         ft = FractionalToken(payable(address(new ERC1967Proxy(
             address(new FractionalToken()),
             abi.encodeWithSelector(
                 FractionalToken.initialize.selector,
-                "Asset Token", "AT1", SUPPLY, ASSET_ID, address(ir), address(cm), admin
+                "Asset Token", "AT1", SUPPLY, ASSET_ID, address(ir), address(cm), admin, admin
             )
         ))));
         ft.mintInitialSupply(seller, address(0), SUPPLY, 0, 10000);
 
         escrow = EscrowMarketplace(payable(address(new ERC1967Proxy(
             address(new EscrowMarketplace()),
-            abi.encodeWithSelector(EscrowMarketplace.initialize.selector, admin, FEE_BPS)
+            abi.encodeWithSelector(EscrowMarketplace.initialize.selector, admin, FEE_BPS, admin)
         ))));
+
+        // Register escrow as agent so it can freeze/unfreeze seller tokens
+        ft.addAgent(address(escrow));
 
         vm.stopPrank();
 
         usdc = new MockERC20();
+
+        // Whitelist USDC as accepted payment token
+        vm.prank(admin);
+        escrow.allowPaymentToken(address(usdc));
 
         _kyc(seller);
         _kyc(buyer);
@@ -90,8 +97,8 @@ contract EscrowMarketplaceTest is Test {
     function _kyc(address wallet) internal {
         vm.startPrank(issuer);
         ir.addIdentity(wallet, keccak256(abi.encodePacked(wallet)));
-        ir.addClaim(wallet, 1, 1, bytes("sig"), abi.encodePacked(bytes2("US")), "");
-        ir.addClaim(wallet, 3, 1, bytes("sig"), abi.encodePacked(bytes2("US")), "");
+        ir.addClaim(wallet, 1, abi.encodePacked(bytes2("US")), "");
+        ir.addClaim(wallet, 3, abi.encodePacked(bytes2("US")), "");
         vm.stopPrank();
     }
 
@@ -189,7 +196,7 @@ contract EscrowMarketplaceTest is Test {
         usdc.mint(buyer, totalPrice);
         vm.startPrank(buyer);
         usdc.approve(address(escrow), totalPrice);
-        escrow.purchaseListing(id);
+        escrow.purchaseListing(id, totalPrice);
         vm.stopPrank();
 
         assertEq(ft.balanceOf(buyer),          LIST_AMOUNT);
@@ -215,7 +222,7 @@ contract EscrowMarketplaceTest is Test {
         uint256 sellerBefore = seller.balance;
 
         vm.prank(buyer);
-        escrow.purchaseListing{value: totalPrice}(id);
+        escrow.purchaseListing{value: totalPrice}(id, totalPrice);
 
         assertEq(ft.balanceOf(buyer),        LIST_AMOUNT);
         assertEq(seller.balance,             sellerBefore + proceeds);
@@ -226,13 +233,13 @@ contract EscrowMarketplaceTest is Test {
         uint256 id = _approveAndList();
         vm.prank(seller);
         vm.expectRevert("EM: seller cannot buy own listing");
-        escrow.purchaseListing(id);
+        escrow.purchaseListing(id, type(uint256).max);
     }
 
     function test_Purchase_InactiveListng_Reverts() public {
         vm.prank(seller);
         vm.expectRevert("EM: listing not active");
-        escrow.purchaseListing(999);
+        escrow.purchaseListing(999, type(uint256).max);
     }
 
     function test_Purchase_WrongETH_Reverts() public {
@@ -241,7 +248,7 @@ contract EscrowMarketplaceTest is Test {
         vm.deal(buyer, totalPrice);
         vm.prank(buyer);
         vm.expectRevert("EM: incorrect ETH amount");
-        escrow.purchaseListing{value: totalPrice - 1}(id);
+        escrow.purchaseListing{value: totalPrice - 1}(id, totalPrice);
     }
 
     function test_Purchase_ETH_SentToERC20Listing_Reverts() public {
@@ -252,7 +259,7 @@ contract EscrowMarketplaceTest is Test {
         usdc.approve(address(escrow), totalPrice);
         vm.deal(buyer, 1 ether);
         vm.expectRevert("EM: ETH not accepted for ERC-20 listing");
-        escrow.purchaseListing{value: 1}(id);
+        escrow.purchaseListing{value: 1}(id, type(uint256).max);
         vm.stopPrank();
     }
 
@@ -263,7 +270,7 @@ contract EscrowMarketplaceTest is Test {
         vm.startPrank(stranger);
         usdc.approve(address(escrow), totalPrice);
         vm.expectRevert("CM: recipient not KYC verified");
-        escrow.purchaseListing(id);
+        escrow.purchaseListing(id, type(uint256).max);
         vm.stopPrank();
     }
 
@@ -355,7 +362,7 @@ contract EscrowMarketplaceTest is Test {
         usdc.mint(buyer, totalPrice);
         vm.startPrank(buyer);
         usdc.approve(address(escrow), totalPrice);
-        escrow.purchaseListing(id);
+        escrow.purchaseListing(id, totalPrice);
         vm.stopPrank();
 
         uint256 fee = (totalPrice * FEE_BPS) / 10000;
@@ -376,7 +383,7 @@ contract EscrowMarketplaceTest is Test {
         uint256 totalPrice = LIST_AMOUNT * pricePerToken / 1e18;
         vm.deal(buyer, totalPrice);
         vm.prank(buyer);
-        escrow.purchaseListing{value: totalPrice}(id);
+        escrow.purchaseListing{value: totalPrice}(id, totalPrice);
 
         uint256 fee = (totalPrice * FEE_BPS) / 10000;
         uint256 adminBefore = admin.balance;
@@ -410,6 +417,16 @@ contract EscrowMarketplaceTest is Test {
         vm.stopPrank();
     }
 
+    function test_Cancel_WhilePaused_Succeeds() public {
+        uint256 id = _approveAndList();
+        vm.prank(admin);
+        escrow.pause();
+
+        vm.prank(seller);
+        escrow.cancelListing(id);
+        assertFalse(escrow.getListing(id).active);
+    }
+
     // Upgrade
     function test_Upgrade_Success() public {
         EscrowMarketplace newImpl = new EscrowMarketplace();
@@ -438,5 +455,135 @@ contract EscrowMarketplaceTest is Test {
         vm.expectRevert("EM: insufficient unlisted balance");
         escrow.listTokens(address(ft), 1, PRICE_PER, address(usdc));
         vm.stopPrank();
+    }
+
+    // Payment token whitelist
+    function test_List_UnallowedPaymentToken_Reverts() public {
+        address rando = makeAddr("randoToken");
+        vm.prank(seller);
+        ft.approve(address(escrow), LIST_AMOUNT);
+        vm.prank(seller);
+        vm.expectRevert("EM: payment token not allowed");
+        escrow.listTokens(address(ft), LIST_AMOUNT, PRICE_PER, rando);
+    }
+
+    function test_AllowDisallowPaymentToken() public {
+        MockERC20 newToken = new MockERC20();
+        assertFalse(escrow.isPaymentTokenAllowed(address(newToken)));
+
+        vm.prank(admin);
+        escrow.allowPaymentToken(address(newToken));
+        assertTrue(escrow.isPaymentTokenAllowed(address(newToken)));
+
+        vm.prank(admin);
+        escrow.disallowPaymentToken(address(newToken));
+        assertFalse(escrow.isPaymentTokenAllowed(address(newToken)));
+    }
+
+    function test_AllowPaymentToken_OnlyOwner_Reverts() public {
+        MockERC20 newToken = new MockERC20();
+        vm.prank(stranger);
+        vm.expectRevert();
+        escrow.allowPaymentToken(address(newToken));
+    }
+
+    // Slippage protection
+    function test_Purchase_PriceExceedsMax_Reverts() public {
+        uint256 id = _approveAndList();
+        uint256 totalPrice = LIST_AMOUNT * PRICE_PER / 1e18;
+        usdc.mint(buyer, totalPrice);
+        vm.startPrank(buyer);
+        usdc.approve(address(escrow), totalPrice);
+        vm.expectRevert("EM: price exceeds max");
+        escrow.purchaseListing(id, totalPrice - 1);
+        vm.stopPrank();
+    }
+
+    // Emergency admin cancel
+    function test_EmergencyAdminCancel_Success() public {
+        uint256 id = _approveAndList();
+        uint256 frozenBefore = ft.frozenTokens(seller);
+        assertEq(frozenBefore, LIST_AMOUNT);
+
+        vm.prank(admin);
+        escrow.emergencyAdminCancel(id);
+
+        assertFalse(escrow.getListing(id).active);
+        assertEq(ft.frozenTokens(seller), 0);
+    }
+
+    function test_EmergencyAdminCancel_OnlyOwner_Reverts() public {
+        uint256 id = _approveAndList();
+        vm.prank(stranger);
+        vm.expectRevert();
+        escrow.emergencyAdminCancel(id);
+    }
+
+    function test_EmergencyAdminCancel_InactiveListing_Reverts() public {
+        vm.prank(admin);
+        vm.expectRevert("EM: listing not active");
+        escrow.emergencyAdminCancel(999);
+    }
+
+    // ── Fuzz tests ─────────────────────────────────────────────────────────────
+
+    function testFuzz_PurchaseListing_FeeAccounting(
+        uint256 amount,
+        uint256 pricePerToken,
+        uint16  feeBps
+    ) public {
+        feeBps        = uint16(bound(feeBps, 0, escrow.MAX_FEE_BPS()));
+        amount        = bound(amount, 1e18, SUPPLY);
+        pricePerToken = bound(pricePerToken, 1, 1e12);
+
+        uint256 totalPrice = amount * pricePerToken / 1e18;
+        vm.assume(totalPrice > 0);
+
+        vm.prank(admin);
+        escrow.setPlatformFee(feeBps);
+
+        usdc.mint(buyer, totalPrice);
+
+        vm.startPrank(seller);
+        ft.approve(address(escrow), amount);
+        uint256 listingId = escrow.listTokens(address(ft), amount, pricePerToken, address(usdc));
+        vm.stopPrank();
+
+        vm.startPrank(buyer);
+        usdc.approve(address(escrow), totalPrice);
+        escrow.purchaseListing(listingId, totalPrice);
+        vm.stopPrank();
+
+        // fee + seller proceeds must equal total price exactly (no value lost to rounding)
+        assertEq(escrow.accruedFees(address(usdc)) + usdc.balanceOf(seller), totalPrice);
+    }
+
+    // ── proposeUpgradeAdmin / acceptUpgradeAdmin ──────────────────────────────
+
+    function test_ProposeUpgradeAdmin_Success() public {
+        address newAdmin = makeAddr("newEMUpgradeAdmin");
+        vm.prank(admin);
+        escrow.proposeUpgradeAdmin(newAdmin);
+        vm.prank(newAdmin);
+        escrow.acceptUpgradeAdmin();
+        assertEq(escrow.upgradeAdmin(), newAdmin);
+    }
+
+    function test_ProposeUpgradeAdmin_NotUpgradeAdmin_Reverts() public {
+        vm.prank(buyer);
+        vm.expectRevert("EM: caller not upgrade admin");
+        escrow.proposeUpgradeAdmin(buyer);
+    }
+
+    function test_ProposeUpgradeAdmin_ZeroAddress_Reverts() public {
+        vm.prank(admin);
+        vm.expectRevert("EM: zero address");
+        escrow.proposeUpgradeAdmin(address(0));
+    }
+
+    function test_AcceptUpgradeAdmin_NotPending_Reverts() public {
+        vm.prank(buyer);
+        vm.expectRevert("EM: caller not pending upgrade admin");
+        escrow.acceptUpgradeAdmin();
     }
 }

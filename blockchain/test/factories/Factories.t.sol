@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ClaimTopicsRegistry} from "../../src/compliance/ClaimTopicsRegistry.sol";
 import {TrustedIssuersRegistry} from "../../src/compliance/TrustedIssuersRegistry.sol";
 import {IdentityRegistry} from "../../src/compliance/IdentityRegistry.sol";
@@ -33,27 +34,27 @@ contract FactoriesTest is Test {
 
         ClaimTopicsRegistry ctr = ClaimTopicsRegistry(payable(address(new ERC1967Proxy(
             address(new ClaimTopicsRegistry()),
-            abi.encodeWithSelector(ClaimTopicsRegistry.initialize.selector, admin)
+            abi.encodeWithSelector(ClaimTopicsRegistry.initialize.selector, admin, admin)
         ))));
 
         TrustedIssuersRegistry tir = TrustedIssuersRegistry(payable(address(new ERC1967Proxy(
             address(new TrustedIssuersRegistry()),
-            abi.encodeWithSelector(TrustedIssuersRegistry.initialize.selector, admin)
+            abi.encodeWithSelector(TrustedIssuersRegistry.initialize.selector, admin, admin)
         ))));
 
         ir = IdentityRegistry(payable(address(new ERC1967Proxy(
             address(new IdentityRegistry()),
-            abi.encodeWithSelector(IdentityRegistry.initialize.selector, admin, address(ctr), address(tir))
+            abi.encodeWithSelector(IdentityRegistry.initialize.selector, admin, address(ctr), address(tir), admin)
         ))));
 
         cm = ComplianceModule(payable(address(new ERC1967Proxy(
             address(new ComplianceModule()),
-            abi.encodeWithSelector(ComplianceModule.initialize.selector, admin, address(ir))
+            abi.encodeWithSelector(ComplianceModule.initialize.selector, admin, address(ir), admin)
         ))));
 
         nftFactory = AssetNFTFactory(payable(address(new ERC1967Proxy(
             address(new AssetNFTFactory()),
-            abi.encodeWithSelector(AssetNFTFactory.initialize.selector, admin, address(new AssetNFT()))
+            abi.encodeWithSelector(AssetNFTFactory.initialize.selector, admin, address(new AssetNFT()), admin)
         ))));
 
         ftFactory = FractionalTokenFactory(payable(address(new ERC1967Proxy(
@@ -63,7 +64,8 @@ contract FactoriesTest is Test {
                 admin,
                 address(new FractionalToken()),
                 address(ir),
-                address(cm)
+                address(cm),
+                admin
             )
         ))));
 
@@ -89,7 +91,8 @@ contract FactoriesTest is Test {
         AssetNFT nft = AssetNFT(payable(nftContract));
         assertEq(nft.ownerOf(tokenId), treasury);
         assertEq(nft.tokenURI(tokenId), URI);
-        assertEq(nft.owner(), admin); // ownership transferred from factory to admin
+        assertEq(nft.owner(), admin);            // ownership transferred from factory to admin
+        assertEq(nft.upgradeAdmin(), admin);     // upgradeAdmin = factory's upgradeAdmin (timelock in prod)
     }
 
     function test_ANFTF_DeployAssetNFT_IncrementingIds() public {
@@ -295,6 +298,77 @@ contract FactoriesTest is Test {
         ftFactory.setImplementation(address(0));
     }
 
+    // Venue contracts
+    function test_FTFAC_SetVenueContracts_Success() public {
+        // Use existing contracts as stand-ins for venue addresses (just need code.length > 0)
+        address mockEscrow   = address(new FractionalToken());
+        address mockAuction  = address(new FractionalToken());
+
+        vm.prank(admin);
+        ftFactory.setVenueContracts(mockEscrow, mockAuction);
+
+        assertEq(ftFactory.escrowMarketplace(), mockEscrow);
+        assertEq(ftFactory.auctionHouse(),      mockAuction);
+    }
+
+    function test_FTFAC_SetVenueContracts_ZeroEscrow_Reverts() public {
+        address mockAuction = address(new FractionalToken());
+        vm.prank(admin);
+        vm.expectRevert("FTFAC: zero escrow marketplace");
+        ftFactory.setVenueContracts(address(0), mockAuction);
+    }
+
+    function test_FTFAC_SetVenueContracts_ZeroAuction_Reverts() public {
+        address mockEscrow = address(new FractionalToken());
+        vm.prank(admin);
+        vm.expectRevert("FTFAC: zero auction house");
+        ftFactory.setVenueContracts(mockEscrow, address(0));
+    }
+
+    function test_FTFAC_SetVenueContracts_EOA_Reverts() public {
+        address mockEscrow  = address(new FractionalToken());
+        vm.prank(admin);
+        vm.expectRevert("FTFAC: auction not a contract");
+        ftFactory.setVenueContracts(mockEscrow, makeAddr("eoa"));
+    }
+
+    function test_FTFAC_SetVenueContracts_OnlyOwner_Reverts() public {
+        address mockEscrow  = address(new FractionalToken());
+        address mockAuction = address(new FractionalToken());
+        vm.prank(user);
+        vm.expectRevert();
+        ftFactory.setVenueContracts(mockEscrow, mockAuction);
+    }
+
+    function test_FTFAC_DeployToken_AutoRegistersVenuesAsAgents() public {
+        address mockEscrow  = address(new FractionalToken());
+        address mockAuction = address(new FractionalToken());
+
+        vm.startPrank(admin);
+        ftFactory.setVenueContracts(mockEscrow, mockAuction);
+
+        address tokenContract = ftFactory.deployFractionalToken(
+            "Token1", "TK1", SUPPLY, ASSET1, treasury, address(0), 10000
+        );
+        vm.stopPrank();
+
+        FractionalToken ft = FractionalToken(payable(tokenContract));
+        assertTrue(ft.isAgent(mockEscrow),  "escrow not registered as agent");
+        assertTrue(ft.isAgent(mockAuction), "auction not registered as agent");
+    }
+
+    function test_FTFAC_DeployToken_NoVenues_SkipsAgentRegistration() public {
+        // Deploying before setVenueContracts is called should succeed without agents
+        vm.prank(admin);
+        address tokenContract = ftFactory.deployFractionalToken(
+            "Token1", "TK1", SUPPLY, ASSET1, treasury, address(0), 10000
+        );
+
+        FractionalToken ft = FractionalToken(payable(tokenContract));
+        assertFalse(ft.isAgent(address(0)));  // no agents registered
+        assertEq(ft.owner(), admin);           // ownership still transferred correctly
+    }
+
     function test_FTFAC_GetAllDeployments_Empty() public view {
         assertEq(ftFactory.getAllDeployments().length, 0);
     }
@@ -330,7 +404,41 @@ contract FactoriesTest is Test {
         assertFalse(success);
     }
 
-    //  _authorizeUpgrade hardening  -  AssetNFTFactory 
+    function test_ANFTF_DeployedNFT_Upgrade_OnlyUpgradeAdmin_Reverts() public {
+        vm.prank(admin);
+        (, address nftContract) = nftFactory.deployAssetNFT(ASSET1, URI, treasury);
+
+        AssetNFT newImpl = new AssetNFT();
+
+        // A random user cannot upgrade a deployed NFT
+        vm.prank(user);
+        vm.expectRevert("AssetNFT: caller not upgrade admin");
+        UUPSUpgradeable(address(nftContract)).upgradeToAndCall(address(newImpl), "");
+
+        // Prove the owner ≠ upgradeAdmin separation with a directly deployed token
+        address separateUpgradeAdmin = makeAddr("nftUpgradeAdmin");
+        AssetNFT nft2 = AssetNFT(payable(address(new ERC1967Proxy(
+            address(new AssetNFT()),
+            abi.encodeWithSelector(
+                AssetNFT.initialize.selector,
+                "Test", "TST", keccak256("asset-x"),
+                admin,               // owner  (Gnosis Safe in prod)
+                separateUpgradeAdmin // upgradeAdmin (GovernanceTimelock in prod)
+            )
+        ))));
+
+        // owner alone is rejected
+        vm.prank(admin);
+        vm.expectRevert("AssetNFT: caller not upgrade admin");
+        UUPSUpgradeable(address(nft2)).upgradeToAndCall(address(newImpl), "");
+
+        // upgradeAdmin succeeds
+        vm.prank(separateUpgradeAdmin);
+        UUPSUpgradeable(address(nft2)).upgradeToAndCall(address(newImpl), "");
+        assertEq(nft2.upgradeAdmin(), separateUpgradeAdmin);
+    }
+
+    //  _authorizeUpgrade hardening  -  AssetNFTFactory
 
     function test_ANFTF_Upgrade_ZeroImpl_Reverts() public {
         vm.prank(admin);
@@ -370,5 +478,75 @@ contract FactoriesTest is Test {
         vm.prank(admin);
         ftFactory.upgradeToAndCall(address(newImpl), "");
         assertEq(ftFactory.owner(), admin);
+    }
+
+    // ── ANFTF proposeUpgradeAdmin / acceptUpgradeAdmin ────────────────────────
+
+    function test_ANFTF_ProposeUpgradeAdmin_Success() public {
+        address newAdmin = makeAddr("newANFTFUpgradeAdmin");
+        vm.prank(admin);
+        nftFactory.proposeUpgradeAdmin(newAdmin);
+        vm.prank(newAdmin);
+        nftFactory.acceptUpgradeAdmin();
+        assertEq(nftFactory.upgradeAdmin(), newAdmin);
+    }
+
+    function test_ANFTF_ProposeUpgradeAdmin_NotUpgradeAdmin_Reverts() public {
+        vm.prank(user);
+        vm.expectRevert("ANFTF: caller not upgrade admin");
+        nftFactory.proposeUpgradeAdmin(user);
+    }
+
+    function test_ANFTF_ProposeUpgradeAdmin_ZeroAddress_Reverts() public {
+        vm.prank(admin);
+        vm.expectRevert("ANFTF: zero address");
+        nftFactory.proposeUpgradeAdmin(address(0));
+    }
+
+    function test_ANFTF_AcceptUpgradeAdmin_NotPending_Reverts() public {
+        vm.prank(user);
+        vm.expectRevert("ANFTF: caller not pending upgrade admin");
+        nftFactory.acceptUpgradeAdmin();
+    }
+
+    function test_ANFTF_SetImplementation_NotContract_Reverts() public {
+        vm.prank(admin);
+        vm.expectRevert("ANFTF: not a contract");
+        nftFactory.setImplementation(makeAddr("eoa"));
+    }
+
+    // ── FTFAC proposeUpgradeAdmin / acceptUpgradeAdmin ────────────────────────
+
+    function test_FTFAC_ProposeUpgradeAdmin_Success() public {
+        address newAdmin = makeAddr("newFTFACUpgradeAdmin");
+        vm.prank(admin);
+        ftFactory.proposeUpgradeAdmin(newAdmin);
+        vm.prank(newAdmin);
+        ftFactory.acceptUpgradeAdmin();
+        assertEq(ftFactory.upgradeAdmin(), newAdmin);
+    }
+
+    function test_FTFAC_ProposeUpgradeAdmin_NotUpgradeAdmin_Reverts() public {
+        vm.prank(user);
+        vm.expectRevert("FTFAC: caller not upgrade admin");
+        ftFactory.proposeUpgradeAdmin(user);
+    }
+
+    function test_FTFAC_ProposeUpgradeAdmin_ZeroAddress_Reverts() public {
+        vm.prank(admin);
+        vm.expectRevert("FTFAC: zero address");
+        ftFactory.proposeUpgradeAdmin(address(0));
+    }
+
+    function test_FTFAC_AcceptUpgradeAdmin_NotPending_Reverts() public {
+        vm.prank(user);
+        vm.expectRevert("FTFAC: caller not pending upgrade admin");
+        ftFactory.acceptUpgradeAdmin();
+    }
+
+    function test_FTFAC_SetImplementation_NotContract_Reverts() public {
+        vm.prank(admin);
+        vm.expectRevert("FTFAC: not a contract");
+        ftFactory.setImplementation(makeAddr("eoa"));
     }
 }

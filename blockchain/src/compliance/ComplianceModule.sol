@@ -44,11 +44,15 @@ contract ComplianceModule is
     // tokenContract => wallet => lock-up
     mapping(address => mapping(address => LockUp)) private _lockUps;
 
-    // Authorized agents (backend signer wallets that can set lock-ups)
+    // Authorized agents (backend signer wallets that can set lock-ups and eligibility)
     mapping(address => bool) private _agents;
+
+    // wallet => investor eligibility level (set by Sumsub backend agent at KYC time)
+    mapping(address => EligibilityLevel) private _walletEligibility;
 
     // Events
     event JurisdictionRulesSet(bytes32 indexed assetId, bytes2[] jurisdictions, EligibilityLevel minLevel);
+    event WalletEligibilitySet(address indexed wallet, EligibilityLevel level);
     event LockUpSet(address indexed tokenContract, address indexed wallet, uint256 unlockTimestamp);
     event LockUpCleared(address indexed tokenContract, address indexed wallet);
     event AgentAdded(address indexed agent);
@@ -66,14 +70,36 @@ contract ComplianceModule is
         _disableInitializers();
     }
 
-    function initialize(address admin, address _identityRegistry) external initializer {
+    address public upgradeAdmin;
+    address public pendingUpgradeAdmin;
+
+    event UpgradeAdminTransferred(address indexed previous, address indexed next);
+    event UpgradeAdminProposed(address indexed proposed);
+
+    function initialize(address admin, address _identityRegistry, address _upgradeAdmin) external initializer {
         __Ownable_init(admin);
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
         __Pausable_init();
 
         require(_identityRegistry != address(0), "CM: zero IR address");
+        require(_upgradeAdmin     != address(0), "CM: zero upgrade admin");
         identityRegistry = IdentityRegistry(payable(_identityRegistry));
+        upgradeAdmin = _upgradeAdmin;
+    }
+
+    function proposeUpgradeAdmin(address newAdmin) external {
+        require(msg.sender == upgradeAdmin, "CM: caller not upgrade admin");
+        require(newAdmin != address(0), "CM: zero address");
+        pendingUpgradeAdmin = newAdmin;
+        emit UpgradeAdminProposed(newAdmin);
+    }
+
+    function acceptUpgradeAdmin() external {
+        require(msg.sender == pendingUpgradeAdmin, "CM: caller not pending upgrade admin");
+        emit UpgradeAdminTransferred(upgradeAdmin, msg.sender);
+        upgradeAdmin = msg.sender;
+        pendingUpgradeAdmin = address(0);
     }
 
     //  Rule configuration (onlyOwner / admin) 
@@ -130,6 +156,16 @@ contract ComplianceModule is
         emit LockUpSet(tokenContract, wallet, unlockTimestamp);
     }
 
+    /**
+     * @notice Sets the eligibility level for an investor wallet. Called by Sumsub backend agent
+     *         after completing KYC — accredited/professional status is determined off-chain.
+     */
+    function setWalletEligibility(address wallet, EligibilityLevel level) external onlyAgent whenNotPaused {
+        require(wallet != address(0), "CM: zero wallet");
+        _walletEligibility[wallet] = level;
+        emit WalletEligibilitySet(wallet, level);
+    }
+
     function clearLockUp(address tokenContract, address wallet) external onlyAgent whenNotPaused {
         require(_lockUps[tokenContract][wallet].active, "CM: no active lock-up");
         delete _lockUps[tokenContract][wallet];
@@ -159,6 +195,7 @@ contract ComplianceModule is
      */
     function isTransferValid(
         bytes32 assetId,
+        address tokenContract,
         address from,
         address to,
         uint256 amount
@@ -174,22 +211,35 @@ contract ComplianceModule is
         }
 
         // Sender must not be under a lock-up on this token contract
-        LockUp storage fromLock = _lockUps[msg.sender][from]; // msg.sender = token contract
+        LockUp storage fromLock = _lockUps[tokenContract][from];
         if (fromLock.active && block.timestamp < fromLock.unlockTimestamp) {
             return (false, "CM: sender tokens locked");
         }
 
-        // If asset has jurisdiction rules set, validate recipient jurisdiction claim
+        // If asset has jurisdiction rules set, validate recipient jurisdiction + eligibility
         AssetRules storage rules = _assetRules[assetId];
-        if (rules.rulesSet && rules.allowedJurisdictions.length > 0) {
-            // Jurisdiction is encoded in claim topic 3 data (first 2 bytes = ISO 3166-1 alpha-2)
-            (, , , , bytes memory claimData, ) = identityRegistry.getClaim(to, 3);
-            if (claimData.length < 2) {
-                return (false, "CM: recipient missing jurisdiction claim");
+        if (rules.rulesSet) {
+            // Eligibility level check (RETAIL=0, ACCREDITED=1, PROFESSIONAL=2)
+            if (rules.minEligibility != EligibilityLevel.RETAIL) {
+                if (uint8(_walletEligibility[to]) < uint8(rules.minEligibility)) {
+                    return (false, "CM: recipient eligibility too low");
+                }
             }
-            bytes2 jurisdiction = bytes2(claimData);
-            if (!rules.jurisdictionAllowed[jurisdiction]) {
-                return (false, "CM: recipient jurisdiction not allowed");
+
+            if (rules.allowedJurisdictions.length > 0) {
+                bytes memory claimData;
+                try identityRegistry.getClaim(to, 3) returns (uint256, address, bytes memory data, string memory) {
+                    claimData = data;
+                } catch {
+                    return (false, "CM: recipient missing jurisdiction claim");
+                }
+                if (claimData.length < 2) {
+                    return (false, "CM: recipient missing jurisdiction claim");
+                }
+                bytes2 jurisdiction = bytes2(claimData);
+                if (!rules.jurisdictionAllowed[jurisdiction]) {
+                    return (false, "CM: recipient jurisdiction not allowed");
+                }
             }
         }
 
@@ -215,6 +265,10 @@ contract ComplianceModule is
         return _agents[account];
     }
 
+    function getWalletEligibility(address wallet) external view returns (EligibilityLevel) {
+        return _walletEligibility[wallet];
+    }
+
     function getAllowedJurisdictions(bytes32 assetId) external view returns (bytes2[] memory) {
         return _assetRules[assetId].allowedJurisdictions;
     }
@@ -232,7 +286,8 @@ contract ComplianceModule is
         _unpause();
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+    function _authorizeUpgrade(address newImplementation) internal override {
+        require(msg.sender == upgradeAdmin, "CM: caller not upgrade admin");
         require(newImplementation != address(0), "CM: zero implementation");
         require(newImplementation.code.length > 0, "CM: not a contract");
         emit ContractUpgraded(newImplementation);
@@ -244,5 +299,5 @@ contract ComplianceModule is
     }
 
     // Storage gap for upgrades
-    uint256[50] private __gap;
+    uint256[47] private __gap;
 }

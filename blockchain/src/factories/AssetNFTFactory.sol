@@ -42,15 +42,37 @@ contract AssetNFTFactory is
         _disableInitializers();
     }
 
-    function initialize(address admin, address _implementation) external initializer {
+    address public upgradeAdmin;
+    address public pendingUpgradeAdmin;
+
+    event UpgradeAdminTransferred(address indexed previous, address indexed next);
+    event UpgradeAdminProposed(address indexed proposed);
+
+    function initialize(address admin, address _implementation, address _upgradeAdmin) external initializer {
         __Ownable_init(admin);
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
         __Pausable_init();
 
         require(_implementation != address(0), "ANFTF: zero implementation");
+        require(_upgradeAdmin   != address(0), "ANFTF: zero upgrade admin");
         implementation = _implementation;
         _nextTokenId   = 1;
+        upgradeAdmin   = _upgradeAdmin;
+    }
+
+    function proposeUpgradeAdmin(address newAdmin) external {
+        require(msg.sender == upgradeAdmin, "ANFTF: caller not upgrade admin");
+        require(newAdmin != address(0), "ANFTF: zero address");
+        pendingUpgradeAdmin = newAdmin;
+        emit UpgradeAdminProposed(newAdmin);
+    }
+
+    function acceptUpgradeAdmin() external {
+        require(msg.sender == pendingUpgradeAdmin, "ANFTF: caller not pending upgrade admin");
+        emit UpgradeAdminTransferred(upgradeAdmin, msg.sender);
+        upgradeAdmin = msg.sender;
+        pendingUpgradeAdmin = address(0);
     }
 
     // Deploy
@@ -80,7 +102,8 @@ contract AssetNFTFactory is
             name,
             symbol,
             assetId,
-            address(this)   // factory is initial owner; transfers ownership below
+            address(this), // factory is initial owner; transfers ownership below
+            upgradeAdmin   // timelock governs upgrades of each deployed AssetNFT
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(implementation, initData);
@@ -103,6 +126,7 @@ contract AssetNFTFactory is
 
     function setImplementation(address newImpl) external onlyOwner {
         require(newImpl != address(0), "ANFTF: zero implementation");
+        require(newImpl.code.length > 0, "ANFTF: not a contract");
         implementation = newImpl;
         emit ImplementationUpdated(newImpl);
     }
@@ -125,7 +149,8 @@ contract AssetNFTFactory is
         _unpause();
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+    function _authorizeUpgrade(address newImplementation) internal override {
+        require(msg.sender == upgradeAdmin, "ANFTF: caller not upgrade admin");
         require(newImplementation != address(0), "ANFTF: zero implementation");
         require(newImplementation.code.length > 0, "ANFTF: not a contract");
         emit ContractUpgraded(newImplementation);
@@ -137,7 +162,7 @@ contract AssetNFTFactory is
     }
 
     // Storage gap for upgrades
-    uint256[50] private __gap;
+    uint256[48] private __gap;
 
     // Helpers
     function _toString(uint256 value) internal pure returns (string memory) {

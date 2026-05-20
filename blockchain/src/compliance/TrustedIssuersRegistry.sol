@@ -37,11 +37,34 @@ contract TrustedIssuersRegistry is
         _disableInitializers();
     }
 
-    function initialize(address admin) external initializer {
+    address public upgradeAdmin;
+    address public pendingUpgradeAdmin;
+
+    event UpgradeAdminTransferred(address indexed previous, address indexed next);
+    event UpgradeAdminProposed(address indexed proposed);
+
+    function initialize(address admin, address _upgradeAdmin) external initializer {
         __Ownable_init(admin);
         __Ownable2Step_init();
         __UUPSUpgradeable_init();
         __Pausable_init();
+
+        require(_upgradeAdmin != address(0), "TIR: zero upgrade admin");
+        upgradeAdmin = _upgradeAdmin;
+    }
+
+    function proposeUpgradeAdmin(address newAdmin) external {
+        require(msg.sender == upgradeAdmin, "TIR: caller not upgrade admin");
+        require(newAdmin != address(0), "TIR: zero address");
+        pendingUpgradeAdmin = newAdmin;
+        emit UpgradeAdminProposed(newAdmin);
+    }
+
+    function acceptUpgradeAdmin() external {
+        require(msg.sender == pendingUpgradeAdmin, "TIR: caller not pending upgrade admin");
+        emit UpgradeAdminTransferred(upgradeAdmin, msg.sender);
+        upgradeAdmin = msg.sender;
+        pendingUpgradeAdmin = address(0);
     }
 
     // Admin functions
@@ -137,7 +160,8 @@ contract TrustedIssuersRegistry is
         }
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
+    function _authorizeUpgrade(address newImplementation) internal override {
+        require(msg.sender == upgradeAdmin, "TIR: caller not upgrade admin");
         require(newImplementation != address(0), "TIR: zero implementation");
         require(newImplementation.code.length > 0, "TIR: not a contract");
         emit ContractUpgraded(newImplementation);
@@ -149,5 +173,5 @@ contract TrustedIssuersRegistry is
     }
 
     // Storage gap for upgrades
-    uint256[50] private __gap;
+    uint256[48] private __gap;
 }
