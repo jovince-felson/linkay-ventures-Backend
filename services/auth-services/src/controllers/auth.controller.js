@@ -242,6 +242,8 @@ export const login = async (req, res, next) => {
         is_user: user.is_user,
         is_museum_user: user.is_museum_user,
         museum_id: user.museum_id,
+        firstName: user.firstName,
+        lastName: user.lastName,
       },
     });
   } catch (error) {
