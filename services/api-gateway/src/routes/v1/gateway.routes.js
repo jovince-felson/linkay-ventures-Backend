@@ -204,7 +204,22 @@ router.use(
     changeOrigin: true,
     proxyTimeout: 60000,
     timeout: 60000,
+    parseReqBody: false,
     pathRewrite: (path) => `/api/v1/assets${path}`,
+    on: { proxyRes: injectCors },
+  }),
+);
+
+// ── Auction routes ────────────────────────────────────────────────────────
+router.use("/api/v1/auctions", verifyToken);
+router.use(
+  "/api/v1/auctions",
+  createProxyMiddleware({
+    target: SERVICESV1.ASSET_MANAGEMENT_SERVICE_URL,
+    changeOrigin: true,
+    proxyTimeout: 60000,
+    timeout: 60000,
+    pathRewrite: (path) => `/api/v1/auctions${path}`,
     on: { proxyRes: injectCors },
   }),
 );

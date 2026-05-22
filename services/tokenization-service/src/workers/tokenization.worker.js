@@ -1,5 +1,7 @@
 import { tokenizationQueue }    from '../config/queue.js';
 import TokenizationJob          from '../models/TokenizationJob.js';
+import Asset                    from '../models/Asset.js';
+import sequelize                from '../config/database.js';
 import { ipfsStep }             from '../steps/ipfs.step.js';
 import { mintNFTStep }          from '../steps/mintNFT.step.js';
 import { deployFractionalStep } from '../steps/deployFractional.step.js';
@@ -94,6 +96,13 @@ tokenizationQueue.process(async (bullJob) => {
 
   // ── All steps done ────────────────────────────────────────────────────────
   await job.update({ status: 'completed', completedAt: new Date() });
+
+  // Mark AssetTokenization record as COMPLETED so the frontend can show Auction button
+  await sequelize.query(
+    'UPDATE asset_tokenizations SET tokenization_status = ? WHERE asset_id = ?',
+    { replacements: ['COMPLETED', payload.assetId] },
+  );
+
   console.log(`✅ Tokenization completed for asset ${payload.assetId}`);
 });
 
