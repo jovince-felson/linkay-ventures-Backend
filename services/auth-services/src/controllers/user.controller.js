@@ -1,5 +1,6 @@
 import { User } from '../models/index.js';
 import { AppError } from '../utils/AppError.js';
+import { generateAccessToken, buildAccessPayload } from '../utils/jwt.util.js';
 
 // PATCH /api/v1/users/wallet
 export const updateWallet = async (req, res, next) => {
@@ -17,7 +18,9 @@ export const updateWallet = async (req, res, next) => {
 
     await user.update({ walletAddress });
 
-    return res.json({ success: true, walletAddress });
+    const newAccessToken = generateAccessToken(buildAccessPayload(user.reload ? await user.reload() : user));
+
+    return res.json({ success: true, walletAddress, accessToken: newAccessToken });
   } catch (error) {
     next(error);
   }
