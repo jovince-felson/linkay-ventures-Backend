@@ -31,6 +31,8 @@ export const createAssetSchema = Joi.object({
   title:             Joi.string().min(1).max(500).required(),
   assetType:         Joi.string().valid(...ASSET_TYPES).required(),
   description:       Joi.string().max(10000).allow('', null).optional(),
+  custodian:         Joi.string().max(300).allow('', null).optional(),
+  ownershipEntity:   Joi.string().max(300).allow('', null).optional(),
   valuation:         Joi.number().positive().allow(null).optional(),
   jurisdiction:      Joi.string().max(200).allow('', null).optional(),
   threeDFiles:       Joi.string().max(2000).allow('', null).optional(),
@@ -46,7 +48,7 @@ export const createAssetSchema = Joi.object({
   pricePerFraction:  Joi.number().positive().allow(null).optional(),
   conditionReport:   Joi.string().max(10000).allow('', null).optional(),
   certificationRef:  Joi.string().max(200).allow('', null).optional(),
-  royaltyPercent:    Joi.number().integer().min(0).max(100).allow(null).optional(),
+  royaltyPercent:    Joi.number().min(0).max(100).allow(null).optional(),
   royaltyWallet:     Joi.string().length(42).pattern(/^0x[a-fA-F0-9]{40}$/).allow('', null).optional(),
 });
 
@@ -54,6 +56,8 @@ export const updateAssetSchema = Joi.object({
   title:             Joi.string().min(1).max(500).optional(),
   assetType:         Joi.string().valid(...ASSET_TYPES).optional(),
   description:       Joi.string().max(10000).allow('', null).optional(),
+  custodian:         Joi.string().max(300).allow('', null).optional(),
+  ownershipEntity:   Joi.string().max(300).allow('', null).optional(),
   valuation:         Joi.number().positive().allow(null).optional(),
   jurisdiction:      Joi.string().max(200).allow('', null).optional(),
   threeDFiles:       Joi.string().max(2000).allow('', null).optional(),
@@ -68,7 +72,7 @@ export const updateAssetSchema = Joi.object({
   pricePerFraction:  Joi.number().positive().allow(null).optional(),
   conditionReport:   Joi.string().max(10000).allow('', null).optional(),
   certificationRef:  Joi.string().max(200).allow('', null).optional(),
-  royaltyPercent:    Joi.number().integer().min(0).max(100).allow(null).optional(),
+  royaltyPercent:    Joi.number().min(0).max(100).allow(null).optional(),
   royaltyWallet:     Joi.string().length(42).pattern(/^0x[a-fA-F0-9]{40}$/).allow('', null).optional(),
 });
 

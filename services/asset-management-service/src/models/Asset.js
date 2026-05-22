@@ -42,8 +42,17 @@ Asset.init(
       allowNull: true,
       field:     'media_files',
     },
+    custodian: {
+      type:      DataTypes.STRING(300),
+      allowNull: true,
+    },
+    ownershipEntity: {
+      type:      DataTypes.STRING(300),
+      allowNull: true,
+      field:     'ownership_entity',
+    },
     status: {
-      type:         DataTypes.ENUM('DRAFT', 'REVIEW', 'LIVE', 'ARCHIVED'),
+      type:         DataTypes.ENUM('DRAFT', 'REVIEW', 'LIVE', 'ARCHIVED', 'TOKENIZED'),
       defaultValue: 'DRAFT',
       allowNull:    false,
     },
@@ -110,7 +119,7 @@ Asset.init(
       field:     'certification_ref',
     },
     royaltyPercent: {
-      type:      DataTypes.INTEGER.UNSIGNED,
+      type:      DataTypes.DECIMAL(5, 2),
       allowNull: true,
       field:     'royalty_percent',
     },

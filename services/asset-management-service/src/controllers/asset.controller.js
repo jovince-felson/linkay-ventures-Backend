@@ -85,7 +85,7 @@ export async function listLiveAssets(req, res) {
 export async function createAsset(req, res) {
   const {
     title, description, assetType, valuation, jurisdiction, dynamicFields = [],
-    historicalContext, totalFractions, tokenizedPercent, retainedPercent,
+    custodian, ownershipEntity, historicalContext, totalFractions, tokenizedPercent, retainedPercent,
     pricePerFraction, conditionReport, certificationRef, royaltyPercent, royaltyWallet,
   } = req.body;
   const userId   = req.user.userId;
@@ -107,6 +107,8 @@ export async function createAsset(req, res) {
         status:            'DRAFT',
         museumId,
         createdBy:         userId,
+        custodian:         custodian         || null,
+        ownershipEntity:   ownershipEntity   || null,
         historicalContext: historicalContext || null,
         totalFractions:    totalFractions    || null,
         tokenizedPercent:  tokenizedPercent  ?? null,
@@ -184,7 +186,7 @@ export async function updateAsset(req, res) {
 
   const {
     title, description, valuation, jurisdiction, dynamicFields,
-    historicalContext, totalFractions, tokenizedPercent, retainedPercent,
+    custodian, ownershipEntity, historicalContext, totalFractions, tokenizedPercent, retainedPercent,
     pricePerFraction, conditionReport, certificationRef, royaltyPercent, royaltyWallet,
   } = req.body;
   const userId = req.user.userId;
@@ -203,6 +205,8 @@ export async function updateAsset(req, res) {
       {
         title,
         description,
+        custodian:         custodian          !== undefined ? (custodian || null)          : undefined,
+        ownershipEntity:   ownershipEntity    !== undefined ? (ownershipEntity || null)    : undefined,
         valuation:         valuation         !== undefined ? (valuation ? parseFloat(valuation) : null) : undefined,
         jurisdiction:      jurisdiction       !== undefined ? (jurisdiction || null)       : undefined,
         historicalContext: historicalContext  !== undefined ? (historicalContext || null)  : undefined,

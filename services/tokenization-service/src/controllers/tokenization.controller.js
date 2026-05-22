@@ -2,6 +2,7 @@ import axios                              from 'axios';
 import { TokenizationJob, Asset }         from '../models/index.js';
 import { INITIAL_STEPS }                  from '../models/TokenizationJob.js';
 import { addTokenizationJob }             from '../config/queue.js';
+import sequelize                          from '../config/database.js';
 import { sendCreated, sendSuccess, sendError, sendNotFound } from '../utils/response.js';
 
 const FILE_SERVICE_URL = process.env.FILE_SERVICE_URL || 'http://file-service:4007/api/v1';
@@ -72,6 +73,14 @@ export async function initiateTokenization(req, res) {
     requestedBy: userId,
     imageUrl,
   });
+
+  // Create/reset the AssetTokenization record so listAssets can track status
+  await sequelize.query(
+    `INSERT INTO asset_tokenizations (id, asset_id, tokenization_status, blockchain_network, requested_by, created_at, updated_at)
+     VALUES (UUID(), ?, 'PENDING', ?, ?, NOW(), NOW())
+     ON DUPLICATE KEY UPDATE tokenization_status = 'PENDING', updated_at = NOW()`,
+    { replacements: [assetId, network, userId] },
+  );
 
   // enqueue — worker picks this up and runs all 4 steps
   await addTokenizationJob({

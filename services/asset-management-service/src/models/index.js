@@ -4,6 +4,7 @@ import AssetDynamicField  from './AssetDynamicField.js';
 import AssetOwnership     from './AssetOwnership.js';
 import AssetTokenization  from './AssetTokenization.js';
 import AssetMedia         from './AssetMedia.js';
+import Auction            from './Auction.js';
 
 // ── Associations ────────────────────────────────────────────────────────────────
 
@@ -23,4 +24,7 @@ AssetMedia.belongsTo(Asset, { foreignKey: 'assetId', as: 'asset' });
 AssetDynamicField.hasMany(AssetDynamicField, { foreignKey: 'parentId', as: 'children' });
 AssetDynamicField.belongsTo(AssetDynamicField, { foreignKey: 'parentId', as: 'parent' });
 
-export { sequelize, Asset, AssetDynamicField, AssetOwnership, AssetTokenization, AssetMedia };
+Asset.hasMany(Auction, { foreignKey: 'assetId', as: 'auctions', onDelete: 'CASCADE' });
+Auction.belongsTo(Asset, { foreignKey: 'assetId', as: 'asset' });
+
+export { sequelize, Asset, AssetDynamicField, AssetOwnership, AssetTokenization, AssetMedia, Auction };
