@@ -188,6 +188,7 @@ services:
       - ./services/asset-management-service/.env
     volumes:
       - asset_management_logs:/app/logs
+      - file_uploads:/app/uploads
     tmpfs:
       - /tmp
     depends_on:
