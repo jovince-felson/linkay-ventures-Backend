@@ -6,6 +6,7 @@ import { AUTH_EVENTS } from '../events/auth.events.js';
 import { writeAuditLog, AuditEvents } from '../utils/auditLog.util.js';
 import { AppError } from '../utils/AppError.js';
 import { Op } from 'sequelize';
+import { generateAccessToken, buildAccessPayload } from '../utils/jwt.util.js';
 
 // GET /auth/walletnonce?address=<eth_address>
 export const getWalletNonce = async (req, res, next) => {
@@ -109,9 +110,13 @@ export const bindWallet = async (req, res, next) => {
       metadata: { walletAddress: checksumAddress },
     });
 
+    const updatedUser = await User.findByPk(userId);
+    const newAccessToken = generateAccessToken(buildAccessPayload(updatedUser));
+
     return res.json({
       success: true,
       walletAddress: checksumAddress,
+      accessToken: newAccessToken,
     });
   } catch (error) {
     next(error);
