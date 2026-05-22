@@ -19,6 +19,7 @@ volumes:
   notification_logs:
   api_gateway_logs:
   asset_management_logs:
+  tokenization_logs:
 
 services:
 
@@ -194,6 +195,33 @@ services:
         condition: service_healthy
       mysql:
         condition: service_healthy
+    networks:
+      - backend
+      - egress
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  tokenization-service:
+    container_name: tokenization-service
+    build:
+      context: ./services/tokenization-service
+      dockerfile: Dockerfile
+    env_file:
+      - ./services/tokenization-service/.env
+    volumes:
+      - tokenization_logs:/app/logs
+    tmpfs:
+      - /tmp
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - backend
       - egress
