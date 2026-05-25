@@ -52,7 +52,7 @@ AssetTokenization.init(
       field:     'transaction_hash',
     },
     tokenizationStatus: {
-      type:         DataTypes.ENUM('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'),
+      type:         DataTypes.ENUM('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'TREASURY_PENDING', 'TREASURY_APPROVED', 'TREASURY_REJECTED'),
       defaultValue: 'PENDING',
       field:        'tokenization_status',
     },

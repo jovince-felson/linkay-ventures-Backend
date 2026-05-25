@@ -18,8 +18,8 @@ export async function createAuction(req, res) {
   }
 
   const tokenization = await AssetTokenization.findOne({ where: { assetId } });
-  if (!tokenization || tokenization.tokenizationStatus !== 'COMPLETED') {
-    return sendError(res, 'Asset must be fully tokenized before creating an auction', 422);
+  if (!tokenization || tokenization.tokenizationStatus !== 'TREASURY_APPROVED') {
+    return sendError(res, 'Asset must be treasury approved before creating an auction', 422);
   }
 
   const auction = await Auction.create({

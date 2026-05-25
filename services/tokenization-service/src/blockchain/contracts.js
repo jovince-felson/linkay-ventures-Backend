@@ -1,8 +1,9 @@
-import { ethers }    from 'ethers';
-import { getSigner } from './provider.js';
+import { ethers }                      from 'ethers';
+import { getSigner, getTreasurySigner } from './provider.js';
 import AssetNFTFactoryABI        from './abis/AssetNFTFactory.json'        with { type: 'json' };
 import FractionalTokenFactoryABI from './abis/FractionalTokenFactory.json' with { type: 'json' };
 import ComplianceModuleABI       from './abis/ComplianceModule.json'       with { type: 'json' };
+import FractionalTokenABI        from './abis/FractionalToken.json'        with { type: 'json' };
 
 export function getAssetNFTFactory() {
   return new ethers.Contract(
@@ -26,4 +27,8 @@ export function getComplianceModule() {
     ComplianceModuleABI,
     getSigner(),
   );
+}
+
+export function getFractionalToken(tokenAddress) {
+  return new ethers.Contract(tokenAddress, FractionalTokenABI, getTreasurySigner());
 }
