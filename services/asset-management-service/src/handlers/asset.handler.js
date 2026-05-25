@@ -11,7 +11,7 @@ async function onTokenizationCompleted(key, data) {
         tokenAddress,
         tokenId,
         transactionHash,
-        tokenizationStatus: 'COMPLETED',
+        tokenizationStatus: 'TREASURY_PENDING',
       },
       { where: { assetId } },
     );

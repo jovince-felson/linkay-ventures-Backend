@@ -107,6 +107,8 @@ services:
       - "4000:4000"
     env_file:
       - ./services/api-gateway/.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - api_gateway_logs:/app/logs
     tmpfs:

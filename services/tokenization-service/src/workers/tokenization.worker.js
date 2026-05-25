@@ -97,13 +97,13 @@ tokenizationQueue.process(async (bullJob) => {
   // ── All steps done ────────────────────────────────────────────────────────
   await job.update({ status: 'completed', completedAt: new Date() });
 
-  // Mark AssetTokenization record as COMPLETED so the frontend can show Auction button
+  // Mark as TREASURY_PENDING — awaiting platform treasury approval before auction
   await sequelize.query(
     'UPDATE asset_tokenizations SET tokenization_status = ? WHERE asset_id = ?',
-    { replacements: ['COMPLETED', payload.assetId] },
+    { replacements: ['TREASURY_PENDING', payload.assetId] },
   );
 
-  console.log(`✅ Tokenization completed for asset ${payload.assetId}`);
+  console.log(`✅ Tokenization completed for asset ${payload.assetId} — awaiting treasury approval`);
 });
 
 tokenizationQueue.on('failed', (bullJob, err) => {

@@ -3,7 +3,8 @@ import { TokenizationJob, Asset }         from '../models/index.js';
 import { INITIAL_STEPS }                  from '../models/TokenizationJob.js';
 import { addTokenizationJob }             from '../config/queue.js';
 import sequelize                          from '../config/database.js';
-import { sendCreated, sendSuccess, sendError, sendNotFound } from '../utils/response.js';
+import { getFractionalToken }             from '../blockchain/contracts.js';
+import { sendCreated, sendSuccess, sendError, sendNotFound, sendForbidden } from '../utils/response.js';
 
 const FILE_SERVICE_URL = process.env.FILE_SERVICE_URL || 'http://file-service:4007/api/v1';
 
@@ -117,4 +118,83 @@ export async function getJobStatus(req, res) {
     error:       job.errorMessage,
     completedAt: job.completedAt,
   });
+}
+
+// ── PATCH /api/v1/tokenization/:assetId/treasury-review ──────────────────────
+export async function treasuryReview(req, res) {
+  const callerRole = req.user.role;
+  if (callerRole !== 'SUPER_ADMIN') {
+    return sendForbidden(res, 'Only SUPER_ADMIN can perform treasury review');
+  }
+
+  const { assetId } = req.params;
+  const { action, reason } = req.body;
+
+  if (!action || !['approve', 'reject'].includes(action)) {
+    return sendError(res, 'action must be "approve" or "reject"', 422);
+  }
+  if (action === 'reject' && !reason) {
+    return sendError(res, 'reason is required when rejecting', 422);
+  }
+
+  const [[tokenization]] = await sequelize.query(
+    'SELECT id, tokenization_status, asset_id FROM asset_tokenizations WHERE asset_id = ?',
+    { replacements: [assetId] },
+  );
+
+  if (!tokenization) return sendNotFound(res, 'Tokenization record not found');
+
+  if (tokenization.tokenization_status !== 'TREASURY_PENDING') {
+    return sendError(res, `Cannot review: current status is ${tokenization.tokenization_status}`, 409);
+  }
+
+  if (action === 'reject') {
+    await sequelize.query(
+      'UPDATE asset_tokenizations SET tokenization_status = ?, error_message = ?, updated_at = NOW() WHERE asset_id = ?',
+      { replacements: ['TREASURY_REJECTED', reason, assetId] },
+    );
+    return sendSuccess(res, { assetId, status: 'TREASURY_REJECTED' }, 'Tokenization rejected by treasury');
+  }
+
+  // approve — call approve() on-chain so AuctionHouse can transfer tokens
+  const MOCK = process.env.CONTRACTS_ENABLED !== 'true';
+
+  const asset = await Asset.findByPk(assetId);
+  if (!asset) return sendNotFound(res, 'Asset not found');
+
+  if (!asset.erc3643ContractAddress) {
+    return sendError(res, 'Token contract address not found for this asset', 422);
+  }
+
+  let approveTxHash = null;
+
+  if (!MOCK) {
+    try {
+      const token         = getFractionalToken(asset.erc3643ContractAddress);
+      const treasuryAddr  = process.env.TREASURY_WALLET;
+      const auctionHouse  = process.env.AUCTION_HOUSE_ADDRESS;
+      const balance       = await token.balanceOf(treasuryAddr);
+
+      if (balance > 0n) {
+        const tx      = await token.approve(auctionHouse, balance);
+        const receipt = await tx.wait(1);
+        approveTxHash = receipt.hash;
+        console.log(`✅ Treasury approved ${balance.toString()} tokens for AuctionHouse, tx: ${approveTxHash}`);
+      } else {
+        console.warn(`⚠️  Treasury balance is 0 for asset ${assetId} — skipping on-chain approve`);
+      }
+    } catch (err) {
+      console.error('Treasury approve on-chain failed:', err.message);
+      return sendError(res, `On-chain approve failed: ${err.message}`, 500);
+    }
+  } else {
+    approveTxHash = `0x${'a'.repeat(64)}`;
+  }
+
+  await sequelize.query(
+    'UPDATE asset_tokenizations SET tokenization_status = ?, updated_at = NOW() WHERE asset_id = ?',
+    { replacements: ['TREASURY_APPROVED', assetId] },
+  );
+
+  return sendSuccess(res, { assetId, status: 'TREASURY_APPROVED', approveTxHash }, 'Tokenization approved by treasury');
 }
