@@ -66,6 +66,11 @@ Asset.init(
       allowNull: false,
       field:     'created_by',
     },
+    createdByName: {
+      type:      DataTypes.STRING(200),
+      allowNull: true,
+      field:     'created_by_name',
+    },
     updatedBy: {
       type:      DataTypes.STRING(36),
       allowNull: true,
