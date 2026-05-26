@@ -112,6 +112,11 @@ Auction.init(
       defaultValue: 'SCHEDULED',
       allowNull:    false,
     },
+    onChainAuctionId: {
+      type:      DataTypes.STRING(78),
+      allowNull: true,
+      field:     'onchain_auction_id',
+    },
   },
   {
     sequelize,

@@ -1,6 +1,7 @@
 import express          from 'express';
 import { errorHandler } from '../middlewares/error.middleware.js';
 import tokenizationRoutes from '../routes/v1/tokenization.routes.js';
+import auctionRoutes      from '../routes/v1/auction.routes.js';
 
 export function createApp() {
   const app = express();
@@ -13,6 +14,7 @@ export function createApp() {
   );
 
   app.use('/api/v1/tokenization', tokenizationRoutes);
+  app.use('/api/v1/auction',      auctionRoutes);
 
   app.use(errorHandler);
 

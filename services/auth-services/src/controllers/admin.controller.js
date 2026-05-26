@@ -11,6 +11,19 @@ const EXCLUDED_FIELDS = [
   'lockedUntil',
 ];
 
+export const getAdminStats = async (req, res) => {
+  try {
+    const [museumAdminCount, verifiedInvestorCount] = await Promise.all([
+      User.count({ where: { is_museum_user: true, status: 'ACCEPTED' } }),
+      User.count({ where: { is_user: true, kyc_status: 'APPROVED' } }),
+    ]);
+    return res.json({ success: true, data: { museumAdminCount, verifiedInvestorCount } });
+  } catch (error) {
+    console.error('[getAdminStats]', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
 export const reviewMuseumUser = async (req, res) => {
   try {
     const { userId } = req.params;
