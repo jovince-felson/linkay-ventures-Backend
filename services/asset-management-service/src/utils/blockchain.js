@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { logger } from 'linkay-shared-utils';
 
-const TOKENIZATION_SERVICE_URL = process.env.TOKENIZATION_SERVICE_URL ||
-  'http://tokenization-service:4005/api/v1/tokenization';
+const TOKENIZATION_SERVICE_URL = (process.env.TOKENIZATION_SERVICE_URL ||
+  'http://tokenization-service:4005') + '/api/v1/tokenization';
 
 export function buildMintPayload(asset, tokenization) {
   return {

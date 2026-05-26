@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { createApp }       from './src/config/app.js';
 import { connectDatabase } from './src/config/database.js';
 import './src/workers/tokenization.worker.js';
+import './src/workers/auction.worker.js';
 
 const PORT = process.env.PORT || 4005;
 

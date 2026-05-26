@@ -1,7 +1,38 @@
+import axios            from 'axios';
 import Auction           from '../models/Auction.js';
 import Asset             from '../models/Asset.js';
 import AssetTokenization from '../models/AssetTokenization.js';
 import { sendSuccess, sendNotFound, sendError } from '../utils/response.js';
+
+const TOKENIZATION_SERVICE_URL = process.env.TOKENIZATION_SERVICE_URL || 'http://tokenization-service:4005';
+
+function toUnixTs(dateStr, timeStr) {
+  return Math.floor(new Date(`${dateStr}T${timeStr}:00.000Z`).getTime() / 1000);
+}
+
+async function scheduleOnChain(auction) {
+  try {
+    await axios.post(`${TOKENIZATION_SERVICE_URL}/api/v1/auction/schedule`, {
+      auctionId:          auction.id,
+      assetId:            auction.assetId,
+      fractionsAllocated: auction.fractionsAllocated,
+      reservePrice:       auction.reservePrice,
+      minIncrement:       auction.minIncrement,
+      startTs:            toUnixTs(auction.startDate, auction.startTime),
+      endTs:              toUnixTs(auction.endDate,   auction.endTime),
+    }, { timeout: 5000 });
+  } catch (err) {
+    console.error(`Failed to schedule auction jobs for ${auction.id}:`, err.message);
+  }
+}
+
+async function cancelOnChain(auctionId) {
+  try {
+    await axios.delete(`${TOKENIZATION_SERVICE_URL}/api/v1/auction/schedule/${auctionId}`, { timeout: 5000 });
+  } catch (err) {
+    console.error(`Failed to cancel auction jobs for ${auctionId}:`, err.message);
+  }
+}
 
 // ── POST /api/v1/auctions ─────────────────────────────────────────────────────
 export async function createAuction(req, res) {
@@ -28,6 +59,10 @@ export async function createAuction(req, res) {
     createdBy: userId,
     updatedBy: userId,
   });
+
+  if (auction.status === 'SCHEDULED') {
+    await scheduleOnChain(auction);
+  }
 
   return sendSuccess(res, auction, 'Auction created successfully', 201);
 }
@@ -73,7 +108,19 @@ export async function updateAuction(req, res) {
     return sendError(res, 'Cannot edit a LIVE or ENDED auction', 409);
   }
 
+  const scheduleFields = ['startDate', 'startTime', 'endDate', 'endTime', 'fractionsAllocated', 'reservePrice', 'minIncrement'];
+  const rescheduling   = auction.status === 'SCHEDULED' && scheduleFields.some((f) => req.body[f] !== undefined);
+
+  if (rescheduling) {
+    await cancelOnChain(auction.id);
+  }
+
   await auction.update({ ...req.body, updatedBy: req.user.userId });
+
+  if (rescheduling) {
+    await scheduleOnChain(auction);
+  }
+
   return sendSuccess(res, auction, 'Auction updated successfully');
 }
 
@@ -97,6 +144,10 @@ export async function patchAuctionStatus(req, res) {
     return sendError(res, `Cannot transition from ${auction.status} to ${status}`, 422);
   }
 
+  if (status === 'CANCELLED' && auction.status === 'SCHEDULED') {
+    await cancelOnChain(auction.id);
+  }
+
   await auction.update({ status, updatedBy: req.user.userId });
   return sendSuccess(res, auction, `Auction status updated to ${status}`);
 }
@@ -109,6 +160,10 @@ export async function deleteAuction(req, res) {
   if (!auction) return sendNotFound(res, 'Auction not found');
   if (auction.status === 'LIVE') {
     return sendError(res, 'Cannot delete a LIVE auction', 409);
+  }
+
+  if (auction.status === 'SCHEDULED') {
+    await cancelOnChain(auction.id);
   }
 
   await auction.destroy();
