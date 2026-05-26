@@ -14,7 +14,7 @@ const EXCLUDED_FIELDS = [
 export const getAdminStats = async (req, res) => {
   try {
     const [museumAdminCount, verifiedInvestorCount] = await Promise.all([
-      User.count({ where: { is_museum_user: true, status: 'ACCEPTED' } }),
+      User.count({ where: { is_museum_user: true, status: 'ACTIVE' } }),
       User.count({ where: { is_user: true, kyc_status: 'APPROVED' } }),
     ]);
     return res.json({ success: true, data: { museumAdminCount, verifiedInvestorCount } });

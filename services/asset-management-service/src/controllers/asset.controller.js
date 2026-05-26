@@ -92,8 +92,9 @@ export async function createAsset(req, res) {
     custodian, ownershipEntity, historicalContext, totalFractions, tokenizedPercent, retainedPercent,
     pricePerFraction, conditionReport, certificationRef, royaltyPercent, royaltyWallet,
   } = req.body;
-  const userId   = req.user.userId;
-  const museumId = req.user.museumId || req.user.userId;
+  const userId        = req.user.userId;
+  const museumId      = req.user.museumId || req.user.userId;
+  const createdByName = [req.user.firstName, req.user.lastName].filter(Boolean).join(' ') || null;
 
   const uploadedFiles = (req.files || []).map((f) => `/uploads/assets/${f.filename}`);
 
@@ -111,6 +112,7 @@ export async function createAsset(req, res) {
         status:            'DRAFT',
         museumId,
         createdBy:         userId,
+        createdByName,
         custodian:         custodian         || null,
         ownershipEntity:   ownershipEntity   || null,
         historicalContext: historicalContext || null,
