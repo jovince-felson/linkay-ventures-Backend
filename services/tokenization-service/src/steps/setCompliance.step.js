@@ -33,6 +33,12 @@ export async function setComplianceStep(job) {
     return { txHash: `0x${'e'.repeat(64)}`, jurisdictions: rawJurisdictions, eligibilityLevel };
   }
 
+  // ── Idempotency check: compliance may have been set in a previous run ───────
+  if (asset.complianceConfigured) {
+    console.warn(`⚠️  setComplianceStep: asset ${assetId} compliance already configured, skipping`);
+    return { txHash: null, jurisdictions: rawJurisdictions, eligibilityLevel, alreadyConfigured: true };
+  }
+
   const complianceModule = getComplianceModule();
   const assetIdBytes     = toBytes32(assetId);
   const jurisdictionBytes = rawJurisdictions.map(toBytes2);
