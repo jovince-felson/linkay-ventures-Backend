@@ -18,10 +18,17 @@ export async function mintNFTStep(job) {
     return { txHash: `0x${'b'.repeat(64)}`, nftContractAddress: mockAddress, tokenId: 1 };
   }
 
+  // ── Idempotency check (DB first) ─────────────────────────────────────────
+  const assetDb = await Asset.findByPk(assetId, { attributes: ['nftContractAddress', 'nftTokenId'] });
+  if (assetDb?.nftContractAddress) {
+    console.warn(`⚠️  mintNFTStep: asset ${assetId} already has nftContractAddress in DB, skipping mint`);
+    return { txHash: null, nftContractAddress: assetDb.nftContractAddress, tokenId: assetDb.nftTokenId || 0, alreadyTokenized: true };
+  }
+
   const factory      = getAssetNFTFactory();
   const assetIdBytes = toBytes32(assetId);
 
-  // ── Idempotency check: asset may have been tokenized in a previous run ─────
+  // ── Idempotency check (on-chain) ──────────────────────────────────────────
   const existingNFTContract = await factory.deployedNFT(assetIdBytes);
   if (existingNFTContract && existingNFTContract !== ethers.ZeroAddress) {
     // Already minted on-chain — sync DB and treat as success
