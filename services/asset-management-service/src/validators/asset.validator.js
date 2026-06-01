@@ -36,6 +36,7 @@ export const createAssetSchema = Joi.object({
   valuation:         Joi.number().positive().allow(null).optional(),
   jurisdiction:      Joi.string().max(200).allow('', null).optional(),
   threeDFiles:       Joi.string().max(2000).allow('', null).optional(),
+  threeDModelUrl:    Joi.string().max(500).allow('', null).optional(),
   liveStream:        Joi.string().max(2000).allow('', null).optional(),
   status:            Joi.string().valid('DRAFT').optional(),
   dynamicFields:     Joi.array().items(dynamicFieldSchema).optional().default([]),
@@ -61,6 +62,7 @@ export const updateAssetSchema = Joi.object({
   valuation:         Joi.number().positive().allow(null).optional(),
   jurisdiction:      Joi.string().max(200).allow('', null).optional(),
   threeDFiles:       Joi.string().max(2000).allow('', null).optional(),
+  threeDModelUrl:    Joi.string().max(500).allow('', null).optional(),
   liveStream:        Joi.string().max(2000).allow('', null).optional(),
   dynamicFields:     Joi.array().items(dynamicFieldSchema).optional(),
 

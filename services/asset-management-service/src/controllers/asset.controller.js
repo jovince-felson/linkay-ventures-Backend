@@ -91,6 +91,7 @@ export async function createAsset(req, res) {
     title, description, assetType, valuation, jurisdiction, dynamicFields = [],
     custodian, ownershipEntity, historicalContext, totalFractions, tokenizedPercent, retainedPercent,
     pricePerFraction, conditionReport, certificationRef, royaltyPercent, royaltyWallet,
+    threeDModelUrl,
   } = req.body;
   const userId        = req.user.userId;
   const museumId      = req.user.museumId || req.user.userId;
@@ -124,6 +125,7 @@ export async function createAsset(req, res) {
         certificationRef:  certificationRef  || null,
         royaltyPercent:    royaltyPercent    ?? null,
         royaltyWallet:     royaltyWallet     || null,
+        threeDModelUrl:    threeDModelUrl    || null,
       },
       { transaction: t },
     );
@@ -194,6 +196,7 @@ export async function updateAsset(req, res) {
     title, description, valuation, jurisdiction, dynamicFields,
     custodian, ownershipEntity, historicalContext, totalFractions, tokenizedPercent, retainedPercent,
     pricePerFraction, conditionReport, certificationRef, royaltyPercent, royaltyWallet,
+    threeDModelUrl,
   } = req.body;
   const userId = req.user.userId;
 
@@ -224,6 +227,7 @@ export async function updateAsset(req, res) {
         certificationRef:  certificationRef   !== undefined ? (certificationRef || null)   : undefined,
         royaltyPercent:    royaltyPercent     !== undefined ? (royaltyPercent ?? null)     : undefined,
         royaltyWallet:     royaltyWallet      !== undefined ? (royaltyWallet || null)      : undefined,
+        threeDModelUrl:    threeDModelUrl     !== undefined ? (threeDModelUrl || null)     : undefined,
         ...(mediaFiles && { mediaFiles }),
         updatedBy:         userId,
       },

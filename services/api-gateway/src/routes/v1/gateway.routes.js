@@ -210,6 +210,21 @@ router.use(
   }),
 );
 
+// ── 3D Generation routes (Meshy AI via asset-management-service) ─────────────
+router.use("/api/v1/3d", verifyToken);
+router.use(
+  "/api/v1/3d",
+  createProxyMiddleware({
+    target: SERVICESV1.ASSET_MANAGEMENT_SERVICE_URL,
+    changeOrigin: true,
+    proxyTimeout: 120000,
+    timeout: 120000,
+    parseReqBody: false,
+    pathRewrite: (path) => `/api/v1/3d${path}`,
+    on: { proxyRes: injectCors },
+  }),
+);
+
 // ── Auction routes ────────────────────────────────────────────────────────
 router.use("/api/v1/auctions", verifyToken);
 router.use(
