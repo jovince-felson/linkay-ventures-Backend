@@ -71,6 +71,11 @@ Asset.init(
       allowNull: true,
       field:     'created_by_name',
     },
+    threeDModelUrl: {
+      type:      DataTypes.STRING(500),
+      allowNull: true,
+      field:     'three_d_model_url',
+    },
     updatedBy: {
       type:      DataTypes.STRING(36),
       allowNull: true,
