@@ -15,6 +15,7 @@ import {
   publishAsset,
   previewAsset,
   upsertOwnership,
+  adminStats,
 } from '../../controllers/asset.controller.js';
 import { tokenizeAsset, getTokenizationStatus } from '../../controllers/tokenization.controller.js';
 import {
@@ -26,6 +27,12 @@ import {
 import { ownershipSplitSchema, tokenizeSchema } from '../../validators/ownership.validator.js';
 
 const router = Router();
+
+// GET  /api/v1/assets/admin-stats  — SUPER_ADMIN only
+router.get('/admin-stats',
+  authenticate,
+  asyncWrapper(adminStats),
+);
 
 // GET  /api/v1/assets/list-all  — Museum Admin sees own assets, SUPER_ADMIN sees all
 router.get('/list-all',

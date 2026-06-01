@@ -1,7 +1,8 @@
 import { ethers } from 'ethers';
 
-let _provider = null;
-let _signer   = null;
+let _provider        = null;
+let _signer          = null;
+let _treasurySigner  = null;
 
 export function getProvider() {
   if (!_provider) {
@@ -15,6 +16,13 @@ export function getSigner() {
     _signer = new ethers.Wallet(process.env.DEPLOYER_PRIVATE_KEY, getProvider());
   }
   return _signer;
+}
+
+export function getTreasurySigner() {
+  if (!_treasurySigner) {
+    _treasurySigner = new ethers.Wallet(process.env.TREASURY_PRIVATE_KEY, getProvider());
+  }
+  return _treasurySigner;
 }
 
 // convert platform UUID to bytes32 for smart contract

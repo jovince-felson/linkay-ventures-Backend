@@ -21,7 +21,7 @@ function generateSlug(title) {
 // ── GET /assets ────────────────────────────────────────────────────────────────
 export async function listAssets(req, res) {
   const { page, limit, offset } = buildPagination(req.query);
-  const { status, assetType, search, museumId: queryMuseumId } = req.query;
+  const { status, assetType, search, museumId: queryMuseumId, tokenizationStatus } = req.query;
   const order = buildSortOrder(req.query, ['title', 'status', 'created_at', 'published_at']);
 
   const where = {};
@@ -42,14 +42,18 @@ export async function listAssets(req, res) {
     if (queryMuseumId) where.museumId = queryMuseumId;
   }
 
+  const tokenizationInclude = tokenizationStatus && req.user.role === 'SUPER_ADMIN'
+    ? { model: AssetTokenization, as: 'tokenization', required: true,  where: { tokenizationStatus }, paranoid: false }
+    : { model: AssetTokenization, as: 'tokenization', required: false, paranoid: false };
+
   const { count, rows } = await Asset.findAndCountAll({
     where,
     limit,
     offset,
     order,
     include: [
-      { model: AssetOwnership,    as: 'ownershipSplit', paranoid: false },
-      { model: AssetTokenization, as: 'tokenization',   required: false, paranoid: false },
+      { model: AssetOwnership, as: 'ownershipSplit', paranoid: false },
+      tokenizationInclude,
     ],
   });
 
@@ -88,8 +92,9 @@ export async function createAsset(req, res) {
     custodian, ownershipEntity, historicalContext, totalFractions, tokenizedPercent, retainedPercent,
     pricePerFraction, conditionReport, certificationRef, royaltyPercent, royaltyWallet,
   } = req.body;
-  const userId   = req.user.userId;
-  const museumId = req.user.museumId || req.user.userId;
+  const userId        = req.user.userId;
+  const museumId      = req.user.museumId || req.user.userId;
+  const createdByName = [req.user.firstName, req.user.lastName].filter(Boolean).join(' ') || null;
 
   const uploadedFiles = (req.files || []).map((f) => `/uploads/assets/${f.filename}`);
 
@@ -107,6 +112,7 @@ export async function createAsset(req, res) {
         status:            'DRAFT',
         museumId,
         createdBy:         userId,
+        createdByName,
         custodian:         custodian         || null,
         ownershipEntity:   ownershipEntity   || null,
         historicalContext: historicalContext || null,
@@ -397,6 +403,34 @@ export async function upsertOwnership(req, res) {
 
 
 
+
+// ── GET /assets/admin-stats ───────────────────────────────────────────────────
+export async function adminStats(req, res) {
+  if (req.user.role !== 'SUPER_ADMIN') {
+    return sendError(res, 'SUPER_ADMIN only', 403);
+  }
+
+  const [[pending], [live], [[totals]]] = await Promise.all([
+    sequelize.query(
+      'SELECT COUNT(*) AS cnt FROM asset_tokenizations WHERE tokenization_status = ?',
+      { replacements: ['TREASURY_PENDING'] },
+    ),
+    sequelize.query(
+      'SELECT COUNT(*) AS cnt FROM auctions WHERE status = ? AND deleted_at IS NULL',
+      { replacements: ['LIVE'] },
+    ),
+    sequelize.query(
+      'SELECT COUNT(*) AS totalAssets, COALESCE(SUM(valuation), 0) AS totalValue FROM assets WHERE deleted_at IS NULL',
+    ),
+  ]);
+
+  return sendSuccess(res, {
+    pendingTreasuryCount:  Number(pending.cnt),
+    liveAuctionsCount:     Number(live.cnt),
+    totalAssetsCount:      Number(totals.totalAssets),
+    totalAssetValue:       Number(totals.totalValue),
+  });
+}
 
 // 1. Museum Admin login  → get TOKEN + userId (museumAdmin userId)
 // 2. Create asset        → use TOKEN → get assetId

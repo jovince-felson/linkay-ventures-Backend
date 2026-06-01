@@ -36,6 +36,18 @@ export async function deployFractionalStep(job) {
     };
   }
 
+  // ── Idempotency check: fractional token may have been deployed in a previous run ──
+  if (asset.erc3643ContractAddress) {
+    console.warn(`⚠️  deployFractionalStep: asset ${assetId} already has token at ${asset.erc3643ContractAddress}, skipping deploy`);
+    return {
+      txHash:               null,
+      tokenContractAddress: asset.erc3643ContractAddress,
+      totalSupply:          totalSupply.toString(),
+      tokenizedBps,
+      alreadyDeployed:      true,
+    };
+  }
+
   const factory      = getFractionalTokenFactory();
   const assetIdBytes = toBytes32(assetId);
 

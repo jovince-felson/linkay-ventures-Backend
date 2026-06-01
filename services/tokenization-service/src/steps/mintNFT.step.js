@@ -1,4 +1,5 @@
-import Asset               from '../models/Asset.js';
+import { ethers }             from 'ethers';
+import Asset                  from '../models/Asset.js';
 import { getAssetNFTFactory } from '../blockchain/contracts.js';
 import { toBytes32 }          from '../blockchain/provider.js';
 
@@ -17,8 +18,29 @@ export async function mintNFTStep(job) {
     return { txHash: `0x${'b'.repeat(64)}`, nftContractAddress: mockAddress, tokenId: 1 };
   }
 
+  // ── Idempotency check (DB first) ─────────────────────────────────────────
+  const assetDb = await Asset.findByPk(assetId, { attributes: ['nftContractAddress', 'nftTokenId'] });
+  if (assetDb?.nftContractAddress) {
+    console.warn(`⚠️  mintNFTStep: asset ${assetId} already has nftContractAddress in DB, skipping mint`);
+    return { txHash: null, nftContractAddress: assetDb.nftContractAddress, tokenId: assetDb.nftTokenId || 0, alreadyTokenized: true };
+  }
+
   const factory      = getAssetNFTFactory();
   const assetIdBytes = toBytes32(assetId);
+
+  // ── Idempotency check (on-chain) ──────────────────────────────────────────
+  const existingNFTContract = await factory.deployedNFT(assetIdBytes);
+  if (existingNFTContract && existingNFTContract !== ethers.ZeroAddress) {
+    // Already minted on-chain — sync DB and treat as success
+    console.warn(`⚠️  mintNFTStep: asset ${assetId} already tokenized at ${existingNFTContract}, skipping mint`);
+    const existing = await Asset.findByPk(assetId, { attributes: ['nftTokenId'] });
+    const tokenId  = existing?.nftTokenId || 0;
+    await Asset.update(
+      { nftContractAddress: existingNFTContract },   // don't overwrite tokenId if already saved
+      { where: { id: assetId } },
+    );
+    return { txHash: null, nftContractAddress: existingNFTContract, tokenId, alreadyTokenized: true };
+  }
 
   const tx      = await factory.deployAssetNFT(assetIdBytes, ipfsUri, ownerWallet);
   const receipt = await tx.wait(1);
