@@ -40,7 +40,7 @@ auctionQueue.process('startAuction', async (job) => {
 
     if (allowance < amount) {
       const approveTx = await token.approve(houseAddr, amount);
-      await approveTx.wait(1);
+      await approveTx.wait(1, 120000);
       console.log(`✅ Re-approved ${amount.toString()} tokens for AuctionHouse`);
     }
 
@@ -54,7 +54,7 @@ auctionQueue.process('startAuction', async (job) => {
       onChainEndTs,
       paymentToken,
     );
-    const receipt = await tx.wait(1);
+    const receipt = await tx.wait(1, 120000);
 
     const event = receipt.logs
       .map((log) => { try { return house.interface.parseLog(log); } catch { return null; } })
@@ -67,10 +67,29 @@ auctionQueue.process('startAuction', async (job) => {
     console.log(`🔧 MOCK createAuction fakeId=${onChainAuctionId}`);
   }
 
+  const onChainEndDate = new Date(Number(onChainEndTs) * 1000);
+  const endDate = onChainEndDate.toISOString().slice(0, 10);
+  const endTime = onChainEndDate.toTimeString().slice(0, 5);
+
   await sequelize.query(
-    'UPDATE auctions SET status = ?, onchain_auction_id = ?, updated_at = NOW() WHERE id = ?',
-    { replacements: ['LIVE', onChainAuctionId, auctionId] },
+    'UPDATE auctions SET status = ?, onchain_auction_id = ?, end_date = ?, end_time = ?, updated_at = NOW() WHERE id = ?',
+    { replacements: ['LIVE', onChainAuctionId, endDate, endTime, auctionId] },
   );
+
+  // Reschedule settle job using the actual on-chain end time
+  const settleJobId  = `settle-${auctionId}`;
+  const oldSettle    = await auctionQueue.getJob(settleJobId);
+  if (oldSettle) await oldSettle.remove();
+
+  const onChainEndMs  = Number(onChainEndTs) * 1000;
+  const settleDelayMs = Math.max(0, onChainEndMs - Date.now());
+  await auctionQueue.add('settleAuction', { auctionId }, {
+    delay:  settleDelayMs,
+    jobId:  settleJobId,
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 5000 },
+  });
+  console.log(`⏰ Settle rescheduled in ${Math.round(settleDelayMs / 1000)}s (on-chain endTs=${onChainEndTs})`);
 
   console.log(`🎉 Auction ${auctionId} → LIVE (onChainId=${onChainAuctionId})`);
 });
@@ -102,7 +121,7 @@ auctionQueue.process('settleAuction', async (job) => {
 
     const house   = getAuctionHouse();
     const tx      = await house.settleAuction(BigInt(onChainId));
-    const receipt = await tx.wait(1);
+    const receipt = await tx.wait(1, 120000);
     console.log(`✅ settleAuction(${onChainId}) tx=${receipt.hash}`);
   } else {
     console.log(`🔧 MOCK settleAuction`);
