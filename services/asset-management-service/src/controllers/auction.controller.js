@@ -6,8 +6,33 @@ import { sendSuccess, sendNotFound, sendError } from '../utils/response.js';
 
 const TOKENIZATION_SERVICE_URL = process.env.TOKENIZATION_SERVICE_URL || 'http://tokenization-service:4005';
 
-function toUnixTs(dateStr, timeStr) {
-  return Math.floor(new Date(`${dateStr}T${timeStr}:00.000Z`).getTime() / 1000);
+// Parse "UTC", "UTC+5:30", "UTC-4", "Asia/Kolkata" etc. → offset in minutes.
+function tzOffsetMinutes(tz) {
+  if (!tz || tz === 'UTC') return 0;
+  // Named offset form: UTC+H, UTC+H:MM, UTC-H, UTC-H:MM
+  const m = tz.match(/^UTC([+-])(\d{1,2})(?::(\d{2}))?$/i);
+  if (m) {
+    const sign  = m[1] === '+' ? 1 : -1;
+    const hours = parseInt(m[2], 10);
+    const mins  = parseInt(m[3] ?? '0', 10);
+    return sign * (hours * 60 + mins);
+  }
+  // IANA name: use Date to derive offset at epoch (good enough for scheduling)
+  try {
+    const d = new Date();
+    const utcStr   = d.toLocaleString('en-US', { timeZone: 'UTC',    hour12: false });
+    const localStr = d.toLocaleString('en-US', { timeZone: tz,       hour12: false });
+    return (new Date(localStr) - new Date(utcStr)) / 60000;
+  } catch {
+    return 0;
+  }
+}
+
+function toUnixTs(dateStr, timeStr, timezone) {
+  // Build a UTC timestamp by subtracting the timezone offset from the stored local time.
+  const offsetMs = tzOffsetMinutes(timezone) * 60 * 1000;
+  const localMs  = new Date(`${dateStr}T${timeStr}:00.000Z`).getTime();
+  return Math.floor((localMs - offsetMs) / 1000);
 }
 
 async function scheduleOnChain(auction) {
@@ -18,8 +43,8 @@ async function scheduleOnChain(auction) {
       fractionsAllocated: auction.fractionsAllocated,
       reservePrice:       auction.reservePrice,
       minIncrement:       auction.minIncrement,
-      startTs:            toUnixTs(auction.startDate, auction.startTime),
-      endTs:              toUnixTs(auction.endDate,   auction.endTime),
+      startTs:            toUnixTs(auction.startDate, auction.startTime, auction.timezone),
+      endTs:              toUnixTs(auction.endDate,   auction.endTime,   auction.timezone),
     }, { timeout: 5000 });
   } catch (err) {
     console.error(`Failed to schedule auction jobs for ${auction.id}:`, err.message);

@@ -6,7 +6,12 @@ let _treasurySigner  = null;
 
 export function getProvider() {
   if (!_provider) {
-    _provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+    const connection = new ethers.FetchRequest(process.env.RPC_URL);
+    connection.timeout = 120000; // 2 minutes
+    _provider = new ethers.JsonRpcProvider(connection, undefined, {
+      polling: true,
+      pollingInterval: 4000,
+    });
   }
   return _provider;
 }
