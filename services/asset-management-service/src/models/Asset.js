@@ -76,6 +76,13 @@ Asset.init(
       allowNull: true,
       field:     'three_d_model_url',
     },
+    dynamicFields: {
+      type:         DataTypes.JSON,
+      allowNull:    true,
+      defaultValue: null,
+      field:        'dynamic_fields',
+      comment:      'Array of {fieldKey,fieldLabel,fieldType,fieldOptions,fieldValue,isRequired,fieldOrder}',
+    },
     updatedBy: {
       type:      DataTypes.STRING(36),
       allowNull: true,

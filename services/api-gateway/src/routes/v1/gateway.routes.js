@@ -210,7 +210,21 @@ router.use(
   }),
 );
 
-// ── 3D Generation routes (Meshy AI via asset-management-service) ─────────────
+// ── 3D public proxy routes (no auth — needed for <video> and useGLTF) ────────
+router.use(
+  "/api/v1/3d/public",
+  createProxyMiddleware({
+    target: SERVICESV1.ASSET_MANAGEMENT_SERVICE_URL,
+    changeOrigin: true,
+    proxyTimeout: 120000,
+    timeout: 120000,
+    parseReqBody: false,
+    pathRewrite: (path) => `/api/v1/3d/public${path}`,
+    on: { proxyRes: injectCors },
+  }),
+);
+
+// ── 3D authenticated routes ────────────────────────────────────────────────────
 router.use("/api/v1/3d", verifyToken);
 router.use(
   "/api/v1/3d",

@@ -1,7 +1,7 @@
 import { Op }             from 'sequelize';
 import { v4 as uuidv4 }   from 'uuid';
 import sequelize          from '../config/database.js';
-import { Asset, AssetDynamicField, AssetOwnership, AssetTokenization } from '../models/index.js';
+import { Asset, AssetOwnership, AssetTokenization } from '../models/index.js';
 import { assetEvents }    from '../events/asset.events.js';
 import {
   sendSuccess, sendCreated, sendPaginated,
@@ -126,32 +126,24 @@ export async function createAsset(req, res) {
         royaltyPercent:    royaltyPercent    ?? null,
         royaltyWallet:     royaltyWallet     || null,
         threeDModelUrl:    threeDModelUrl    || null,
+        dynamicFields:     dynamicFields.length
+          ? dynamicFields.map((f, i) => ({
+              fieldKey:     f.fieldKey     || f.fieldLabel?.toLowerCase().replace(/[^a-z0-9]+/g, '_') || `field_${i}`,
+              fieldLabel:   f.fieldLabel,
+              fieldType:    f.fieldType,
+              fieldOptions: f.fieldOptions || null,
+              fieldValue:   f.fieldValue   || null,
+              fieldOrder:   f.fieldOrder   ?? i,
+              isRequired:   f.isRequired   ?? false,
+            }))
+          : null,
       },
       { transaction: t },
     );
 
-    if (dynamicFields.length) {
-      await AssetDynamicField.bulkCreate(
-        dynamicFields.map((f, i) => ({
-          assetId:      asset.id,
-          fieldKey:     f.fieldKey,
-          fieldLabel:   f.fieldLabel,
-          fieldType:    f.fieldType,
-          fieldOptions: f.fieldOptions || null,
-          fieldValue:   f.fieldValue   || null,
-          fieldOrder:   f.fieldOrder   ?? i,
-          isRequired:   f.isRequired   ?? false,
-          parentId:     f.parentId     || null,
-        })),
-        { transaction: t },
-      );
-    }
-
     await t.commit();
 
-    const result = await Asset.findByPk(asset.id, {
-      include: [{ model: AssetDynamicField, as: 'dynamicFields' }],
-    });
+    const result = await Asset.findByPk(asset.id);
 
     assetEvents.created(result).catch(() => {});
     return sendCreated(res, result, 'Asset created successfully');
@@ -174,9 +166,8 @@ async function findOwnedAsset(assetId, user, include = []) {
 export async function getAsset(req, res) {
   const asset = await Asset.findByPk(req.params.assetId, {
     include: [
-      { model: AssetDynamicField,  as: 'dynamicFields' },
-      { model: AssetOwnership,     as: 'ownershipSplit', paranoid: false },
-      { model: AssetTokenization,  as: 'tokenization',   required: false, paranoid: false },
+      { model: AssetOwnership,    as: 'ownershipSplit', paranoid: false },
+      { model: AssetTokenization, as: 'tokenization',   required: false, paranoid: false },
     ],
   });
   if (!asset) return sendNotFound(res, 'Asset not found');
@@ -228,38 +219,30 @@ export async function updateAsset(req, res) {
         royaltyPercent:    royaltyPercent     !== undefined ? (royaltyPercent ?? null)     : undefined,
         royaltyWallet:     royaltyWallet      !== undefined ? (royaltyWallet || null)      : undefined,
         threeDModelUrl:    threeDModelUrl     !== undefined ? (threeDModelUrl || null)     : undefined,
+        ...(dynamicFields !== undefined && {
+          dynamicFields: dynamicFields.length
+            ? dynamicFields.map((f, i) => ({
+                fieldKey:     f.fieldKey     || f.fieldLabel?.toLowerCase().replace(/[^a-z0-9]+/g, '_') || `field_${i}`,
+                fieldLabel:   f.fieldLabel,
+                fieldType:    f.fieldType,
+                fieldOptions: f.fieldOptions || null,
+                fieldValue:   f.fieldValue   || null,
+                fieldOrder:   f.fieldOrder   ?? i,
+                isRequired:   f.isRequired   ?? false,
+              }))
+            : null,
+        }),
         ...(mediaFiles && { mediaFiles }),
         updatedBy:         userId,
       },
       { transaction: t },
     );
 
-    if (dynamicFields !== undefined) {
-      await AssetDynamicField.destroy({ where: { assetId: asset.id }, transaction: t });
-      if (dynamicFields.length) {
-        await AssetDynamicField.bulkCreate(
-          dynamicFields.map((f, i) => ({
-            assetId:      asset.id,
-            fieldKey:     f.fieldKey,
-            fieldLabel:   f.fieldLabel,
-            fieldType:    f.fieldType,
-            fieldOptions: f.fieldOptions || null,
-            fieldValue:   f.fieldValue   || null,
-            fieldOrder:   f.fieldOrder   ?? i,
-            isRequired:   f.isRequired   ?? false,
-            parentId:     f.parentId     || null,
-          })),
-          { transaction: t },
-        );
-      }
-    }
-
     await t.commit();
 
     const updated = await Asset.findByPk(asset.id, {
       include: [
-        { model: AssetDynamicField, as: 'dynamicFields' },
-        { model: AssetOwnership,    as: 'ownershipSplit', paranoid: false },
+        { model: AssetOwnership, as: 'ownershipSplit', paranoid: false },
       ],
     });
 
@@ -321,8 +304,7 @@ export async function patchAssetStatus(req, res) {
 // ── PATCH /assets/:id/publish ──────────────────────────────────────────────────
 export async function publishAsset(req, res) {
   const asset = await findOwnedAsset(req.params.assetId, req.user, [
-    { model: AssetDynamicField, as: 'dynamicFields' },
-    { model: AssetOwnership,    as: 'ownershipSplit', paranoid: false },
+    { model: AssetOwnership, as: 'ownershipSplit', paranoid: false },
   ]);
   if (!asset) return sendNotFound(res, 'Asset not found');
 
@@ -358,9 +340,8 @@ export async function publishAsset(req, res) {
 export async function previewAsset(req, res) {
   const asset = await Asset.findByPk(req.params.assetId, {
     include: [
-      { model: AssetDynamicField,  as: 'dynamicFields',  required: false },
-      { model: AssetOwnership,     as: 'ownershipSplit',  paranoid: false },
-      { model: AssetTokenization,  as: 'tokenization',    required: false, paranoid: false },
+      { model: AssetOwnership,    as: 'ownershipSplit',  paranoid: false },
+      { model: AssetTokenization, as: 'tokenization',    required: false, paranoid: false },
     ],
   });
   if (!asset) return sendNotFound(res, 'Asset not found');
