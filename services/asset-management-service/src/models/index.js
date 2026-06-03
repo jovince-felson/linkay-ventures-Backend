@@ -1,15 +1,10 @@
 import sequelize          from '../config/database.js';
 import Asset              from './Asset.js';
-import AssetDynamicField  from './AssetDynamicField.js';
 import AssetOwnership     from './AssetOwnership.js';
 import AssetTokenization  from './AssetTokenization.js';
 import AssetMedia         from './AssetMedia.js';
 import Auction            from './Auction.js';
-
 // ── Associations ────────────────────────────────────────────────────────────────
-
-Asset.hasMany(AssetDynamicField, { foreignKey: 'assetId', as: 'dynamicFields', onDelete: 'CASCADE' });
-AssetDynamicField.belongsTo(Asset, { foreignKey: 'assetId', as: 'asset' });
 
 Asset.hasMany(AssetOwnership, { foreignKey: 'assetId', as: 'ownershipSplit', onDelete: 'CASCADE' });
 AssetOwnership.belongsTo(Asset, { foreignKey: 'assetId', as: 'asset' });
@@ -20,11 +15,7 @@ AssetTokenization.belongsTo(Asset, { foreignKey: 'assetId', as: 'asset' });
 Asset.hasMany(AssetMedia, { foreignKey: 'assetId', as: 'mediaItems', onDelete: 'CASCADE' });
 AssetMedia.belongsTo(Asset, { foreignKey: 'assetId', as: 'asset' });
 
-// self-referential for repeatable nested fields
-AssetDynamicField.hasMany(AssetDynamicField, { foreignKey: 'parentId', as: 'children' });
-AssetDynamicField.belongsTo(AssetDynamicField, { foreignKey: 'parentId', as: 'parent' });
-
 Asset.hasMany(Auction, { foreignKey: 'assetId', as: 'auctions', onDelete: 'CASCADE' });
 Auction.belongsTo(Asset, { foreignKey: 'assetId', as: 'asset' });
 
-export { sequelize, Asset, AssetDynamicField, AssetOwnership, AssetTokenization, AssetMedia, Auction };
+export { sequelize, Asset, AssetOwnership, AssetTokenization, AssetMedia, Auction };
