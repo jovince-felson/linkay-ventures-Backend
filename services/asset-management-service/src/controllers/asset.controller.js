@@ -1,7 +1,7 @@
 import { Op }             from 'sequelize';
 import { v4 as uuidv4 }   from 'uuid';
 import sequelize          from '../config/database.js';
-import { Asset, AssetOwnership, AssetTokenization } from '../models/index.js';
+import { Asset, AssetOwnership, AssetTokenization, Auction } from '../models/index.js';
 import { assetEvents }    from '../events/asset.events.js';
 import {
   sendSuccess, sendCreated, sendPaginated,
@@ -54,10 +54,25 @@ export async function listAssets(req, res) {
     include: [
       { model: AssetOwnership, as: 'ownershipSplit', paranoid: false },
       tokenizationInclude,
+      {
+        model:    Auction,
+        as:       'auctions',
+        required: false,
+        attributes: ['id', 'status', 'startDate', 'startTime', 'endDate', 'endTime', 'onChainAuctionId'],
+        order:    [['createdAt', 'DESC']],
+        limit:    1,
+      },
     ],
   });
 
-  return sendPaginated(res, rows, buildPaginationMeta(count, page, limit));
+  const rowsWithLatestAuction = rows.map((asset) => {
+    const plain = asset.toJSON();
+    plain.latestAuction = plain.auctions?.[0] ?? null;
+    delete plain.auctions;
+    return plain;
+  });
+
+  return sendPaginated(res, rowsWithLatestAuction, buildPaginationMeta(count, page, limit));
 }
 
 // ── GET /assets/marketplace (INVESTOR) ────────────────────────────────────────
