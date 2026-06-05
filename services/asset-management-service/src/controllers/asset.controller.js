@@ -101,6 +101,68 @@ export async function listLiveAssets(req, res) {
 }
 
 // ── POST /assets ───────────────────────────────────────────────────────────────
+// ── helpers ────────────────────────────────────────────────────────────────────
+
+/** Normalise req.files for both .array() and .fields() multer configs */
+function getUploadedFiles(req) {
+  if (!req.files) return { mediaFiles: [], dynamicFieldFiles: [] };
+  if (Array.isArray(req.files)) {
+    // legacy .array() config — all files are media files
+    return { mediaFiles: req.files, dynamicFieldFiles: [] };
+  }
+  // .fields() config
+  return {
+    mediaFiles:        req.files.mediaFiles        || [],
+    dynamicFieldFiles: req.files.dynamicFieldFiles || [],
+  };
+}
+
+/**
+ * Merge uploaded dynamic-field files directly into the dynamicFields JSON array.
+ * dynamicFieldMeta : JSON string — array of field indices, one per uploaded file
+ *                    e.g. "[0, 0, 1]"  means file[0]→field[0], file[1]→field[0], file[2]→field[1]
+ * dynamicFieldsArr : current dynamicFields array from the asset (already normalised)
+ * Returns a NEW array with fieldValue set to an array of file-path strings.
+ */
+/**
+ * Merge uploaded file paths directly into each file_upload field's fieldValue.
+ * meta: array of field indices (already parsed — one number per uploaded file)
+ *       e.g. [0, 0, 1]  →  file[0]→field[0], file[1]→field[0], file[2]→field[1]
+ */
+function mergeFilesIntoDynamicFields(dynamicFieldsArr, uploadedFiles, meta) {
+  if (!uploadedFiles.length || !Array.isArray(dynamicFieldsArr) || !dynamicFieldsArr.length) {
+    return dynamicFieldsArr;
+  }
+
+  // meta is now a parsed array (not a JSON string)
+  const metaArr = Array.isArray(meta) ? meta : [];
+
+  // Deep-clone so we don't mutate the original
+  const fields = dynamicFieldsArr.map((f) => ({
+    ...f,
+    fieldValue: f.fieldValue ?? null,
+  }));
+
+  uploadedFiles.forEach((file, fileIdx) => {
+    const fieldIndex = metaArr[fileIdx];
+    if (fieldIndex === undefined || fieldIndex === null) return;
+
+    const field = fields[fieldIndex];
+    if (!field || field.fieldType !== 'file_upload') return;
+
+    const filePath = `/uploads/assets/${file.filename}`;
+
+    // Accumulate file paths as an array inside fieldValue
+    const existing = Array.isArray(field.fieldValue)
+      ? field.fieldValue
+      : (field.fieldValue ? [field.fieldValue] : []);
+
+    field.fieldValue = [...existing, filePath];
+  });
+
+  return fields;
+}
+
 export async function createAsset(req, res) {
   const {
     title, description, assetType, valuation, jurisdiction, dynamicFields = [],
@@ -112,7 +174,8 @@ export async function createAsset(req, res) {
   const museumId      = req.user.museumId || req.user.userId;
   const createdByName = [req.user.firstName, req.user.lastName].filter(Boolean).join(' ') || null;
 
-  const uploadedFiles = (req.files || []).map((f) => `/uploads/assets/${f.filename}`);
+  const { mediaFiles: mf, dynamicFieldFiles: dff } = getUploadedFiles(req);
+  const uploadedFiles = mf.map((f) => `/uploads/assets/${f.filename}`);
 
   const t = await sequelize.transaction();
   try {
@@ -141,17 +204,24 @@ export async function createAsset(req, res) {
         royaltyPercent:    royaltyPercent    ?? null,
         royaltyWallet:     royaltyWallet     || null,
         threeDModelUrl:    threeDModelUrl    || null,
-        dynamicFields:     dynamicFields.length
-          ? dynamicFields.map((f, i) => ({
-              fieldKey:     f.fieldKey     || f.fieldLabel?.toLowerCase().replace(/[^a-z0-9]+/g, '_') || `field_${i}`,
-              fieldLabel:   f.fieldLabel,
-              fieldType:    f.fieldType,
-              fieldOptions: f.fieldOptions || null,
-              fieldValue:   f.fieldValue   || null,
-              fieldOrder:   f.fieldOrder   ?? i,
-              isRequired:   f.isRequired   ?? false,
-            }))
-          : null,
+        dynamicFields: (() => {
+          // Normalise field definitions
+          const base = dynamicFields.length
+            ? dynamicFields.map((f, i) => ({
+                fieldKey:     f.fieldKey     || f.fieldLabel?.toLowerCase().replace(/[^a-z0-9]+/g, '_') || `field_${i}`,
+                fieldLabel:   f.fieldLabel,
+                fieldType:    f.fieldType,
+                fieldOptions: f.fieldOptions || null,
+                fieldValue:   f.fieldValue   ?? null,
+                fieldOrder:   f.fieldOrder   ?? i,
+                isRequired:   f.isRequired   ?? false,
+              }))
+            : null;
+          // Merge any uploaded file paths directly into fieldValue
+          return base
+            ? mergeFilesIntoDynamicFields(base, dff, req.body.dynamicFieldMeta)
+            : null;
+        })(),
       },
       { transaction: t },
     );
@@ -208,12 +278,44 @@ export async function updateAsset(req, res) {
 
   const t = await sequelize.transaction();
   try {
-    const files = req.files || [];
+    const { mediaFiles: mf, dynamicFieldFiles: dff } = getUploadedFiles(req);
+
     let mediaFiles;
-    if (files.length) {
-      const newPaths = files.map((f) => `/uploads/assets/${f.filename}`);
+    if (mf.length) {
+      const newPaths = mf.map((f) => `/uploads/assets/${f.filename}`);
       const existing = Array.isArray(asset.mediaFiles) ? asset.mediaFiles : [];
       mediaFiles = [...existing, ...newPaths];
+    }
+
+    // ── Step 1: Normalise dynamicFields from body (if provided) ──────────────────
+    let resolvedDynamicFields;
+    if (dynamicFields !== undefined) {
+      resolvedDynamicFields = dynamicFields.length
+        ? dynamicFields.map((f, i) => ({
+            fieldKey:     f.fieldKey     || f.fieldLabel?.toLowerCase().replace(/[^a-z0-9]+/g, '_') || `field_${i}`,
+            fieldLabel:   f.fieldLabel,
+            fieldType:    f.fieldType,
+            fieldOptions: f.fieldOptions || null,
+            fieldValue:   f.fieldValue   ?? null,
+            fieldOrder:   f.fieldOrder   ?? i,
+            isRequired:   f.isRequired   ?? false,
+          }))
+        : null;
+    }
+
+    // ── Step 2: Merge uploaded file paths into fieldValue (JSON column) ───────────
+    // This handles BOTH cases:
+    //   a) JSON + files in same request  → use resolvedDynamicFields as base
+    //   b) Files-only FormData PATCH     → load existing dynamicFields from DB as base
+    if (dff.length > 0) {
+      const base = resolvedDynamicFields
+        ?? (Array.isArray(asset.dynamicFields) ? asset.dynamicFields : []);
+
+      if (base && base.length > 0) {
+        resolvedDynamicFields = mergeFilesIntoDynamicFields(
+          base, dff, req.body.dynamicFieldMeta,
+        );
+      }
     }
 
     await asset.update(
@@ -234,19 +336,7 @@ export async function updateAsset(req, res) {
         royaltyPercent:    royaltyPercent     !== undefined ? (royaltyPercent ?? null)     : undefined,
         royaltyWallet:     royaltyWallet      !== undefined ? (royaltyWallet || null)      : undefined,
         threeDModelUrl:    threeDModelUrl     !== undefined ? (threeDModelUrl || null)     : undefined,
-        ...(dynamicFields !== undefined && {
-          dynamicFields: dynamicFields.length
-            ? dynamicFields.map((f, i) => ({
-                fieldKey:     f.fieldKey     || f.fieldLabel?.toLowerCase().replace(/[^a-z0-9]+/g, '_') || `field_${i}`,
-                fieldLabel:   f.fieldLabel,
-                fieldType:    f.fieldType,
-                fieldOptions: f.fieldOptions || null,
-                fieldValue:   f.fieldValue   || null,
-                fieldOrder:   f.fieldOrder   ?? i,
-                isRequired:   f.isRequired   ?? false,
-              }))
-            : null,
-        }),
+        ...(resolvedDynamicFields !== undefined && { dynamicFields: resolvedDynamicFields }),
         ...(mediaFiles && { mediaFiles }),
         updatedBy:         userId,
       },
@@ -361,7 +451,6 @@ export async function previewAsset(req, res) {
   });
   if (!asset) return sendNotFound(res, 'Asset not found');
 
-  // Media files are stored on the Asset record itself — no separate file service needed
   const media = Array.isArray(asset.mediaFiles) ? asset.mediaFiles : [];
 
   return sendSuccess(res, {
