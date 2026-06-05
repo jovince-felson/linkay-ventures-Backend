@@ -173,6 +173,11 @@ Asset.init(
       defaultValue: false,
       field:        'compliance_configured',
     },
+    transactionHash: {
+      type:      DataTypes.STRING(100),
+      allowNull: true,
+      field:     'transaction_hash',
+    },
   },
   {
     sequelize,
