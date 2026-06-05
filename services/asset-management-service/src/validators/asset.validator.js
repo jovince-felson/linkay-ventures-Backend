@@ -5,7 +5,7 @@ const dynamicFieldSchema = Joi.object({
   fieldKey:     Joi.string().max(100).required(),
   fieldLabel:   Joi.string().max(200).required(),
   fieldType:    Joi.string()
-                   .valid('text', 'textarea', 'number', 'dropdown', 'multi_select', 'date', 'checkbox', 'repeatable')
+                   .valid('text', 'textarea', 'number', 'dropdown', 'multi_select', 'date', 'checkbox', 'repeatable', 'file_upload')
                    .required(),
   fieldOptions: Joi.alternatives().try(
     Joi.array().items(
@@ -40,6 +40,8 @@ export const createAssetSchema = Joi.object({
   liveStream:        Joi.string().max(2000).allow('', null).optional(),
   status:            Joi.string().valid('DRAFT').optional(),
   dynamicFields:     Joi.array().items(dynamicFieldSchema).optional().default([]),
+  // Array of field indices (parsed from JSON string by parseFormDataJsonFields middleware)
+  dynamicFieldMeta:  Joi.array().items(Joi.number().integer()).allow(null).optional(),
 
   // tokenization fields
   historicalContext: Joi.string().max(10000).allow('', null).optional(),
@@ -65,6 +67,8 @@ export const updateAssetSchema = Joi.object({
   threeDModelUrl:    Joi.string().max(500).allow('', null).optional(),
   liveStream:        Joi.string().max(2000).allow('', null).optional(),
   dynamicFields:     Joi.array().items(dynamicFieldSchema).optional(),
+  // Array of field indices (parsed from JSON string by parseFormDataJsonFields middleware)
+  dynamicFieldMeta:  Joi.array().items(Joi.number().integer()).allow(null).optional(),
 
   // tokenization fields
   historicalContext: Joi.string().max(10000).allow('', null).optional(),
