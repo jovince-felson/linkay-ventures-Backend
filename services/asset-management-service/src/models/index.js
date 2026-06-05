@@ -4,6 +4,7 @@ import AssetOwnership     from './AssetOwnership.js';
 import AssetTokenization  from './AssetTokenization.js';
 import AssetMedia         from './AssetMedia.js';
 import Auction            from './Auction.js';
+
 // ── Associations ────────────────────────────────────────────────────────────────
 
 Asset.hasMany(AssetOwnership, { foreignKey: 'assetId', as: 'ownershipSplit', onDelete: 'CASCADE' });

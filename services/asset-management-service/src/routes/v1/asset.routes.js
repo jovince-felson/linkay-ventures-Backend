@@ -27,6 +27,22 @@ import { ownershipSplitSchema, tokenizeSchema } from '../../validators/ownership
 
 const router = Router();
 
+/**
+ * When the request is multipart/form-data (file upload), multer puts every
+ * text field into req.body as a plain string.  This middleware re-parses any
+ * JSON-encoded string fields so Joi validation and the controller receive the
+ * correct JS types (array / number / etc.).
+ */
+function parseFormDataJsonFields(req, _res, next) {
+  const JSON_FIELDS = ['dynamicFields', 'dynamicFieldMeta'];
+  for (const key of JSON_FIELDS) {
+    if (req.body[key] && typeof req.body[key] === 'string') {
+      try { req.body[key] = JSON.parse(req.body[key]); } catch { /* leave as string */ }
+    }
+  }
+  next();
+}
+
 // GET  /api/v1/assets/admin-stats  — SUPER_ADMIN only
 router.get('/admin-stats',
   authenticate,

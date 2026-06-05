@@ -101,6 +101,68 @@ export async function listLiveAssets(req, res) {
 }
 
 // ── POST /assets ───────────────────────────────────────────────────────────────
+// ── helpers ────────────────────────────────────────────────────────────────────
+
+/** Normalise req.files for both .array() and .fields() multer configs */
+function getUploadedFiles(req) {
+  if (!req.files) return { mediaFiles: [], dynamicFieldFiles: [] };
+  if (Array.isArray(req.files)) {
+    // legacy .array() config — all files are media files
+    return { mediaFiles: req.files, dynamicFieldFiles: [] };
+  }
+  // .fields() config
+  return {
+    mediaFiles:        req.files.mediaFiles        || [],
+    dynamicFieldFiles: req.files.dynamicFieldFiles || [],
+  };
+}
+
+/**
+ * Merge uploaded dynamic-field files directly into the dynamicFields JSON array.
+ * dynamicFieldMeta : JSON string — array of field indices, one per uploaded file
+ *                    e.g. "[0, 0, 1]"  means file[0]→field[0], file[1]→field[0], file[2]→field[1]
+ * dynamicFieldsArr : current dynamicFields array from the asset (already normalised)
+ * Returns a NEW array with fieldValue set to an array of file-path strings.
+ */
+/**
+ * Merge uploaded file paths directly into each file_upload field's fieldValue.
+ * meta: array of field indices (already parsed — one number per uploaded file)
+ *       e.g. [0, 0, 1]  →  file[0]→field[0], file[1]→field[0], file[2]→field[1]
+ */
+function mergeFilesIntoDynamicFields(dynamicFieldsArr, uploadedFiles, meta) {
+  if (!uploadedFiles.length || !Array.isArray(dynamicFieldsArr) || !dynamicFieldsArr.length) {
+    return dynamicFieldsArr;
+  }
+
+  // meta is now a parsed array (not a JSON string)
+  const metaArr = Array.isArray(meta) ? meta : [];
+
+  // Deep-clone so we don't mutate the original
+  const fields = dynamicFieldsArr.map((f) => ({
+    ...f,
+    fieldValue: f.fieldValue ?? null,
+  }));
+
+  uploadedFiles.forEach((file, fileIdx) => {
+    const fieldIndex = metaArr[fileIdx];
+    if (fieldIndex === undefined || fieldIndex === null) return;
+
+    const field = fields[fieldIndex];
+    if (!field || field.fieldType !== 'file_upload') return;
+
+    const filePath = `/uploads/assets/${file.filename}`;
+
+    // Accumulate file paths as an array inside fieldValue
+    const existing = Array.isArray(field.fieldValue)
+      ? field.fieldValue
+      : (field.fieldValue ? [field.fieldValue] : []);
+
+    field.fieldValue = [...existing, filePath];
+  });
+
+  return fields;
+}
+
 export async function createAsset(req, res) {
   const {
     title, description, assetType, valuation, jurisdiction, dynamicFields = [],
@@ -349,7 +411,6 @@ export async function previewAsset(req, res) {
   });
   if (!asset) return sendNotFound(res, 'Asset not found');
 
-  // Media files are stored on the Asset record itself — no separate file service needed
   const media = Array.isArray(asset.mediaFiles) ? asset.mediaFiles : [];
 
   return sendSuccess(res, {
