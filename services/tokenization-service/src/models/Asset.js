@@ -29,6 +29,7 @@ Asset.init(
     nftTokenId:            { type: DataTypes.INTEGER.UNSIGNED, field: 'nft_token_id' },
     erc3643ContractAddress:{ type: DataTypes.STRING(42),  field: 'erc3643_contract_address' },
     complianceConfigured:  { type: DataTypes.BOOLEAN,     field: 'compliance_configured' },
+    transactionHash:       { type: DataTypes.STRING(100), field: 'transaction_hash' },
   },
   {
     sequelize,

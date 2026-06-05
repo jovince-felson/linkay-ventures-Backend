@@ -127,6 +127,11 @@ tokenizationQueue.process(async (bullJob) => {
   // ── All steps done ────────────────────────────────────────────────────────
   await job.update({ status: 'completed', completedAt: new Date() });
 
+  await Asset.update(
+    { transactionHash: nftResult.txHash },
+    { where: { id: payload.assetId } },
+  );
+
   // Mark as TREASURY_PENDING — awaiting platform treasury approval before auction
   await sequelize.query(
     'UPDATE asset_tokenizations SET tokenization_status = ? WHERE asset_id = ?',
