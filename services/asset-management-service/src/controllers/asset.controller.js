@@ -112,8 +112,6 @@ export async function createAsset(req, res) {
   const museumId      = req.user.museumId || req.user.userId;
   const createdByName = [req.user.firstName, req.user.lastName].filter(Boolean).join(' ') || null;
 
-  const uploadedFiles = (req.files || []).map((f) => `/uploads/assets/${f.filename}`);
-
   const t = await sequelize.transaction();
   try {
     const asset = await Asset.create(
@@ -124,7 +122,6 @@ export async function createAsset(req, res) {
         assetType,
         valuation:         valuation ? parseFloat(valuation) : null,
         jurisdiction:      jurisdiction || null,
-        mediaFiles:        uploadedFiles.length ? uploadedFiles : null,
         status:            'DRAFT',
         museumId,
         createdBy:         userId,
@@ -143,7 +140,7 @@ export async function createAsset(req, res) {
         threeDModelUrl:    threeDModelUrl    || null,
         dynamicFields:     dynamicFields.length
           ? dynamicFields.map((f, i) => ({
-              fieldKey:     f.fieldKey     || f.fieldLabel?.toLowerCase().replace(/[^a-z0-9]+/g, '_') || `field_${i}`,
+              fieldKey:     f.fieldKey || f.fieldLabel?.toLowerCase().replace(/[^a-z0-9]+/g, '_') || `field_${i}`,
               fieldLabel:   f.fieldLabel,
               fieldType:    f.fieldType,
               fieldOptions: f.fieldOptions || null,
@@ -208,14 +205,6 @@ export async function updateAsset(req, res) {
 
   const t = await sequelize.transaction();
   try {
-    const files = req.files || [];
-    let mediaFiles;
-    if (files.length) {
-      const newPaths = files.map((f) => `/uploads/assets/${f.filename}`);
-      const existing = Array.isArray(asset.mediaFiles) ? asset.mediaFiles : [];
-      mediaFiles = [...existing, ...newPaths];
-    }
-
     await asset.update(
       {
         title,
@@ -237,7 +226,7 @@ export async function updateAsset(req, res) {
         ...(dynamicFields !== undefined && {
           dynamicFields: dynamicFields.length
             ? dynamicFields.map((f, i) => ({
-                fieldKey:     f.fieldKey     || f.fieldLabel?.toLowerCase().replace(/[^a-z0-9]+/g, '_') || `field_${i}`,
+                fieldKey:     f.fieldKey || f.fieldLabel?.toLowerCase().replace(/[^a-z0-9]+/g, '_') || `field_${i}`,
                 fieldLabel:   f.fieldLabel,
                 fieldType:    f.fieldType,
                 fieldOptions: f.fieldOptions || null,
@@ -247,7 +236,6 @@ export async function updateAsset(req, res) {
               }))
             : null,
         }),
-        ...(mediaFiles && { mediaFiles }),
         updatedBy:         userId,
       },
       { transaction: t },

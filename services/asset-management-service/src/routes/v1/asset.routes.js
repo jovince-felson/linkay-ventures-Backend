@@ -3,7 +3,6 @@ import { authenticate }                                     from '../../middlewa
 import { requireMuseumAdmin, requireAnyAdmin, requireInvestor } from '../../middlewares/rbac.middleware.js';
 import { validate }                                         from '../../middlewares/validate.middleware.js';
 import { asyncWrapper }                                     from '../../utils/asyncWrapper.js';
-import { uploadMedia }                                      from '../../middlewares/upload.middleware.js';
 import {
   listAssets,
   listLiveAssets,
@@ -53,7 +52,6 @@ router.get('/marketplace',
 router.post('/create',
   authenticate,
   requireMuseumAdmin,
-  uploadMedia,
   validate(createAssetSchema),
   asyncWrapper(createAsset),
 );
@@ -68,7 +66,6 @@ router.get('/get/:assetId',
 router.patch('/update/:assetId',
   authenticate,
   requireMuseumAdmin,
-  uploadMedia,
   validate(updateAssetSchema),
   asyncWrapper(updateAsset),
 );
