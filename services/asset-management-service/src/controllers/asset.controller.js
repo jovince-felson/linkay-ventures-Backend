@@ -174,9 +174,6 @@ export async function createAsset(req, res) {
   const museumId      = req.user.museumId || req.user.userId;
   const createdByName = [req.user.firstName, req.user.lastName].filter(Boolean).join(' ') || null;
 
-  const { mediaFiles: mf, dynamicFieldFiles: dff } = getUploadedFiles(req);
-  const uploadedFiles = mf.map((f) => `/uploads/assets/${f.filename}`);
-
   const t = await sequelize.transaction();
   try {
     const asset = await Asset.create(
@@ -187,7 +184,6 @@ export async function createAsset(req, res) {
         assetType,
         valuation:         valuation ? parseFloat(valuation) : null,
         jurisdiction:      jurisdiction || null,
-        mediaFiles:        uploadedFiles.length ? uploadedFiles : null,
         status:            'DRAFT',
         museumId,
         createdBy:         userId,
@@ -204,24 +200,17 @@ export async function createAsset(req, res) {
         royaltyPercent:    royaltyPercent    ?? null,
         royaltyWallet:     royaltyWallet     || null,
         threeDModelUrl:    threeDModelUrl    || null,
-        dynamicFields: (() => {
-          // Normalise field definitions
-          const base = dynamicFields.length
-            ? dynamicFields.map((f, i) => ({
-                fieldKey:     f.fieldKey     || f.fieldLabel?.toLowerCase().replace(/[^a-z0-9]+/g, '_') || `field_${i}`,
-                fieldLabel:   f.fieldLabel,
-                fieldType:    f.fieldType,
-                fieldOptions: f.fieldOptions || null,
-                fieldValue:   f.fieldValue   ?? null,
-                fieldOrder:   f.fieldOrder   ?? i,
-                isRequired:   f.isRequired   ?? false,
-              }))
-            : null;
-          // Merge any uploaded file paths directly into fieldValue
-          return base
-            ? mergeFilesIntoDynamicFields(base, dff, req.body.dynamicFieldMeta)
-            : null;
-        })(),
+        dynamicFields:     dynamicFields.length
+          ? dynamicFields.map((f, i) => ({
+              fieldKey:     f.fieldKey || f.fieldLabel?.toLowerCase().replace(/[^a-z0-9]+/g, '_') || `field_${i}`,
+              fieldLabel:   f.fieldLabel,
+              fieldType:    f.fieldType,
+              fieldOptions: f.fieldOptions || null,
+              fieldValue:   f.fieldValue   || null,
+              fieldOrder:   f.fieldOrder   ?? i,
+              isRequired:   f.isRequired   ?? false,
+            }))
+          : null,
       },
       { transaction: t },
     );
@@ -278,46 +267,6 @@ export async function updateAsset(req, res) {
 
   const t = await sequelize.transaction();
   try {
-    const { mediaFiles: mf, dynamicFieldFiles: dff } = getUploadedFiles(req);
-
-    let mediaFiles;
-    if (mf.length) {
-      const newPaths = mf.map((f) => `/uploads/assets/${f.filename}`);
-      const existing = Array.isArray(asset.mediaFiles) ? asset.mediaFiles : [];
-      mediaFiles = [...existing, ...newPaths];
-    }
-
-    // ── Step 1: Normalise dynamicFields from body (if provided) ──────────────────
-    let resolvedDynamicFields;
-    if (dynamicFields !== undefined) {
-      resolvedDynamicFields = dynamicFields.length
-        ? dynamicFields.map((f, i) => ({
-            fieldKey:     f.fieldKey     || f.fieldLabel?.toLowerCase().replace(/[^a-z0-9]+/g, '_') || `field_${i}`,
-            fieldLabel:   f.fieldLabel,
-            fieldType:    f.fieldType,
-            fieldOptions: f.fieldOptions || null,
-            fieldValue:   f.fieldValue   ?? null,
-            fieldOrder:   f.fieldOrder   ?? i,
-            isRequired:   f.isRequired   ?? false,
-          }))
-        : null;
-    }
-
-    // ── Step 2: Merge uploaded file paths into fieldValue (JSON column) ───────────
-    // This handles BOTH cases:
-    //   a) JSON + files in same request  → use resolvedDynamicFields as base
-    //   b) Files-only FormData PATCH     → load existing dynamicFields from DB as base
-    if (dff.length > 0) {
-      const base = resolvedDynamicFields
-        ?? (Array.isArray(asset.dynamicFields) ? asset.dynamicFields : []);
-
-      if (base && base.length > 0) {
-        resolvedDynamicFields = mergeFilesIntoDynamicFields(
-          base, dff, req.body.dynamicFieldMeta,
-        );
-      }
-    }
-
     await asset.update(
       {
         title,
@@ -336,8 +285,19 @@ export async function updateAsset(req, res) {
         royaltyPercent:    royaltyPercent     !== undefined ? (royaltyPercent ?? null)     : undefined,
         royaltyWallet:     royaltyWallet      !== undefined ? (royaltyWallet || null)      : undefined,
         threeDModelUrl:    threeDModelUrl     !== undefined ? (threeDModelUrl || null)     : undefined,
-        ...(resolvedDynamicFields !== undefined && { dynamicFields: resolvedDynamicFields }),
-        ...(mediaFiles && { mediaFiles }),
+        ...(dynamicFields !== undefined && {
+          dynamicFields: dynamicFields.length
+            ? dynamicFields.map((f, i) => ({
+                fieldKey:     f.fieldKey || f.fieldLabel?.toLowerCase().replace(/[^a-z0-9]+/g, '_') || `field_${i}`,
+                fieldLabel:   f.fieldLabel,
+                fieldType:    f.fieldType,
+                fieldOptions: f.fieldOptions || null,
+                fieldValue:   f.fieldValue   || null,
+                fieldOrder:   f.fieldOrder   ?? i,
+                isRequired:   f.isRequired   ?? false,
+              }))
+            : null,
+        }),
         updatedBy:         userId,
       },
       { transaction: t },
