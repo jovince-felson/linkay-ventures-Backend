@@ -1,5 +1,4 @@
 import express          from 'express';
-import path             from 'path';
 import { errorHandler } from '../middlewares/error.middleware.js';
 import assetRoutes      from '../routes/v1/asset.routes.js';
 import auctionRoutes    from '../routes/v1/auction.routes.js';
@@ -7,8 +6,6 @@ import threeDRoutes     from '../routes/v1/threeD.routes.js';
 
 export function createApp() {
   const app = express();
-
-  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
   app.use((req, _res, next) => {
     req.requestTime = new Date().toISOString();
