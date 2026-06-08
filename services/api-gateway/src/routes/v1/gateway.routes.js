@@ -195,6 +195,20 @@ router.use(
   }),
 );
 
+// ── AI routes (proxied to asset-management-service) ──────────────────────
+router.use("/api/v1/ai", verifyToken);
+router.use(
+  "/api/v1/ai",
+  createProxyMiddleware({
+    target: SERVICESV1.ASSET_MANAGEMENT_SERVICE_URL,
+    changeOrigin: true,
+    proxyTimeout: 30000,
+    timeout: 30000,
+    pathRewrite: (path) => `/api/v1/ai${path}`,
+    on: { proxyRes: injectCors },
+  }),
+);
+
 // ── Asset Management routes ───────────────────────────────────────────────
 router.use("/api/v1/assets", verifyToken);
 router.use(
