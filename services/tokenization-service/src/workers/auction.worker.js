@@ -69,7 +69,7 @@ auctionQueue.process('startAuction', async (job) => {
 
   const onChainEndDate = new Date(Number(onChainEndTs) * 1000);
   const endDate = onChainEndDate.toISOString().slice(0, 10);
-  const endTime = onChainEndDate.toTimeString().slice(0, 5);
+  const endTime = onChainEndDate.toISOString().slice(11, 16);
 
   await sequelize.query(
     'UPDATE auctions SET status = ?, onchain_auction_id = ?, end_date = ?, end_time = ?, updated_at = NOW() WHERE id = ?',
