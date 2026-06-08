@@ -36,8 +36,8 @@ const fileFilter = (_req, file, cb) => {
 export const uploadMedia = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 50 * 1024 * 1024 },   // 50 MB per file
+  limits: { fileSize: 100 * 1024 * 1024, files: 30 },
 }).fields([
-  { name: 'mediaFiles',        maxCount: 10 },
-  { name: 'dynamicFieldFiles', maxCount: 50 },  // up to 50 files across all dynamic fields
+  { name: 'mediaFiles',       maxCount: 10 },
+  { name: 'dynamicFieldFiles', maxCount: 20 },
 ]);

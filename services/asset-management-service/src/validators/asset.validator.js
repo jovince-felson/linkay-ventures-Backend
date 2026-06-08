@@ -5,6 +5,7 @@ const dynamicFieldSchema = Joi.object({
   fieldKey:     Joi.string().max(100).required(),
   fieldLabel:   Joi.string().max(200).required(),
   fieldType:    Joi.string()
+                   .lowercase()
                    .valid('text', 'textarea', 'number', 'dropdown', 'multi_select', 'date', 'checkbox', 'repeatable', 'file_upload')
                    .required(),
   fieldOptions: Joi.alternatives().try(
