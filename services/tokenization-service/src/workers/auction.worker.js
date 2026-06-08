@@ -67,9 +67,24 @@ auctionQueue.process('startAuction', async (job) => {
     console.log(`🔧 MOCK createAuction fakeId=${onChainAuctionId}`);
   }
 
-  const onChainEndDate = new Date(Number(onChainEndTs) * 1000);
-  const endDate = onChainEndDate.toISOString().slice(0, 10);
-  const endTime = onChainEndDate.toISOString().slice(11, 16);
+  const [[auctionRow]] = await sequelize.query(
+    'SELECT timezone FROM auctions WHERE id = ?',
+    { replacements: [auctionId] },
+  );
+  const tz = auctionRow?.timezone || 'UTC';
+  const tzOffsetMin = (() => {
+    if (!tz || tz === 'UTC') return 0;
+    const m = tz.match(/^UTC([+-])(\d{1,2})(?::(\d{2}))?$/i);
+    if (m) {
+      const sign = m[1] === '+' ? 1 : -1;
+      return sign * (parseInt(m[2], 10) * 60 + parseInt(m[3] ?? '0', 10));
+    }
+    return 0;
+  })();
+  const localEndMs = Number(onChainEndTs) * 1000 + tzOffsetMin * 60 * 1000;
+  const localEndDate = new Date(localEndMs);
+  const endDate = localEndDate.toISOString().slice(0, 10);
+  const endTime = localEndDate.toISOString().slice(11, 16);
 
   await sequelize.query(
     'UPDATE auctions SET status = ?, onchain_auction_id = ?, end_date = ?, end_time = ?, updated_at = NOW() WHERE id = ?',
