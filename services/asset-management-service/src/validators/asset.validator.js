@@ -67,9 +67,10 @@ export const updateAssetSchema = Joi.object({
   threeDFiles:       Joi.string().max(2000).allow('', null).optional(),
   threeDModelUrl:    Joi.string().max(500).allow('', null).optional(),
   liveStream:        Joi.string().max(2000).allow('', null).optional(),
-  dynamicFields:     Joi.array().items(dynamicFieldSchema).optional(),
-  // Array of field indices (parsed from JSON string by parseFormDataJsonFields middleware)
-  dynamicFieldMeta:  Joi.array().items(Joi.number().integer()).allow(null).optional(),
+  dynamicFields:     Joi.alternatives().try(
+    Joi.array().items(dynamicFieldSchema),
+    Joi.string(),
+  ).optional(),
 
   // tokenization fields
   historicalContext: Joi.string().max(10000).allow('', null).optional(),

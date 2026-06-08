@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticate }                                     from '../../middlewares/auth.middleware.js';
 import { requireMuseumAdmin, requireAnyAdmin, requireInvestor } from '../../middlewares/rbac.middleware.js';
 import { validate }                                         from '../../middlewares/validate.middleware.js';
+import { uploadMedia }                                      from '../../middlewares/upload.middleware.js';
 import { asyncWrapper }                                     from '../../utils/asyncWrapper.js';
 import {
   listAssets,
@@ -82,6 +83,7 @@ router.get('/get/:assetId',
 router.patch('/update/:assetId',
   authenticate,
   requireMuseumAdmin,
+  uploadMedia,
   validate(updateAssetSchema),
   asyncWrapper(updateAsset),
 );

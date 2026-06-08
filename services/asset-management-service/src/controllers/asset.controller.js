@@ -14,6 +14,29 @@ import { logger } from 'linkay-shared-utils';
 
 const FILE_SERVICE_URL = process.env.FILE_SERVICE_URL || 'http://file-service:4007/api/v1';
 
+function tzOffsetMinutes(tz) {
+  if (!tz || tz === 'UTC') return 0;
+  const m = tz.match(/^UTC([+-])(\d{1,2})(?::(\d{2}))?$/i);
+  if (m) {
+    const sign  = m[1] === '+' ? 1 : -1;
+    const hours = parseInt(m[2], 10);
+    const mins  = parseInt(m[3] ?? '0', 10);
+    return sign * (hours * 60 + mins);
+  }
+  try {
+    const d       = new Date();
+    const utcStr  = d.toLocaleString('en-US', { timeZone: 'UTC', hour12: false });
+    const locStr  = d.toLocaleString('en-US', { timeZone: tz,    hour12: false });
+    return (new Date(locStr) - new Date(utcStr)) / 60000;
+  } catch { return 0; }
+}
+
+function toUTCIso(dateStr, timeStr, timezone) {
+  const offsetMs = tzOffsetMinutes(timezone) * 60 * 1000;
+  const localMs  = new Date(`${dateStr}T${timeStr}:00.000Z`).getTime();
+  return new Date(localMs - offsetMs).toISOString();
+}
+
 function generateSlug(title) {
   return `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}-${uuidv4().slice(0, 8)}`;
 }
@@ -58,7 +81,7 @@ export async function listAssets(req, res) {
         model:    Auction,
         as:       'auctions',
         required: false,
-        attributes: ['id', 'status', 'startDate', 'startTime', 'endDate', 'endTime', 'onChainAuctionId'],
+        attributes: ['id', 'status', 'startDate', 'startTime', 'endDate', 'endTime', 'timezone', 'onChainAuctionId'],
         order:    [['createdAt', 'DESC']],
         limit:    1,
       },
@@ -67,7 +90,11 @@ export async function listAssets(req, res) {
 
   const rowsWithLatestAuction = rows.map((asset) => {
     const plain = asset.toJSON();
-    plain.latestAuction = plain.auctions?.[0] ?? null;
+    const auction = plain.auctions?.[0] ?? null;
+    if (auction?.endDate && auction?.endTime) {
+      auction.endDateTimeUTC = toUTCIso(auction.endDate, auction.endTime, auction.timezone);
+    }
+    plain.latestAuction = auction;
     delete plain.auctions;
     return plain;
   });
@@ -258,15 +285,49 @@ export async function updateAsset(req, res) {
   }
 
   const {
-    title, description, valuation, jurisdiction, dynamicFields,
+    title, description, valuation, jurisdiction,
     custodian, ownershipEntity, historicalContext, totalFractions, tokenizedPercent, retainedPercent,
     pricePerFraction, conditionReport, certificationRef, royaltyPercent, royaltyWallet,
     threeDModelUrl,
   } = req.body;
   const userId = req.user.userId;
 
+  // dynamicFields may arrive as a JSON string (multipart) or a parsed array (JSON body)
+  let dynamicFields = req.body.dynamicFields;
+  if (typeof dynamicFields === 'string') {
+    try { dynamicFields = JSON.parse(dynamicFields); } catch { dynamicFields = undefined; }
+  }
+
+  // Convert uploaded buffers to base64 data URLs for DB storage
+  const uploadedMedia = (req.files?.mediaFiles ?? []).map(
+    (f) => `data:${f.mimetype};base64,${f.buffer.toString('base64')}`,
+  );
+  const uploadedDynamicFiles = req.files?.dynamicFieldFiles ?? [];
+
   const t = await sequelize.transaction();
   try {
+    // Merge uploaded media with existing stored paths
+    const existingMedia = Array.isArray(asset.mediaFiles) ? asset.mediaFiles : [];
+    const mergedMedia   = uploadedMedia.length ? [...existingMedia, ...uploadedMedia] : undefined;
+
+    // Merge dynamic-field file uploads into their respective fieldValue entries
+    let mergedDynamicFields = dynamicFields;
+    if (uploadedDynamicFiles.length && dynamicFields) {
+      let meta = [];
+      try { meta = JSON.parse(req.body.dynamicFieldMeta ?? '[]'); } catch { meta = []; }
+      const fields = Array.isArray(dynamicFields) ? [...dynamicFields] : [];
+      uploadedDynamicFiles.forEach((f, i) => {
+        const fieldIdx = meta[i] ?? -1;
+        if (fieldIdx >= 0 && fields[fieldIdx]) {
+          const dataUrl  = `data:${f.mimetype};base64,${f.buffer.toString('base64')}`;
+          const existing = fields[fieldIdx].fieldValue;
+          const prev     = existing ? String(existing).split(', ').filter(Boolean) : [];
+          fields[fieldIdx] = { ...fields[fieldIdx], fieldValue: [...prev, dataUrl].join(', ') };
+        }
+      });
+      mergedDynamicFields = fields;
+    }
+
     await asset.update(
       {
         title,
@@ -285,9 +346,10 @@ export async function updateAsset(req, res) {
         royaltyPercent:    royaltyPercent     !== undefined ? (royaltyPercent ?? null)     : undefined,
         royaltyWallet:     royaltyWallet      !== undefined ? (royaltyWallet || null)      : undefined,
         threeDModelUrl:    threeDModelUrl     !== undefined ? (threeDModelUrl || null)     : undefined,
-        ...(dynamicFields !== undefined && {
-          dynamicFields: dynamicFields.length
-            ? dynamicFields.map((f, i) => ({
+        ...(mergedMedia !== undefined && { mediaFiles: mergedMedia }),
+        ...(mergedDynamicFields !== undefined && {
+          dynamicFields: mergedDynamicFields.length
+            ? mergedDynamicFields.map((f, i) => ({
                 fieldKey:     f.fieldKey || f.fieldLabel?.toLowerCase().replace(/[^a-z0-9]+/g, '_') || `field_${i}`,
                 fieldLabel:   f.fieldLabel,
                 fieldType:    f.fieldType,
