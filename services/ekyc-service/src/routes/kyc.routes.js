@@ -19,7 +19,7 @@ router.post(
     req.body = JSON.parse(req.rawBody);
     next();
   },
-  verifySumsubWebhook,
+  // verifySumsubWebhook,
   kycWebhook,
 );
 

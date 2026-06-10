@@ -7,6 +7,29 @@ import { writeAuditLog, AuditEvents } from '../utils/auditLog.util.js';
 import { AppError } from '../utils/AppError.js';
 import { Op } from 'sequelize';
 import { generateAccessToken, buildAccessPayload } from '../utils/jwt.util.js';
+import logger from '../utils/logger.js';
+
+const EKYC_URL      = process.env.EKYC_SERVICE_URL    || 'http://localhost:4004';
+const INTERNAL_KEY  = process.env.INTERNAL_SERVICE_KEY || '';
+
+const triggerOnChainKyc = async (userId, walletAddress) => {
+  try {
+    const res = await fetch(`${EKYC_URL}/internal/kyc/register-onchain`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-service': INTERNAL_KEY,
+      },
+      body: JSON.stringify({ userId, walletAddress }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      logger.error(`[WalletBind] On-chain KYC trigger failed: ${res.status} ${text}`);
+    }
+  } catch (err) {
+    logger.error(`[WalletBind] On-chain KYC trigger error: ${err.message}`);
+  }
+};
 
 // GET /auth/walletnonce?address=<eth_address>
 export const getWalletNonce = async (req, res, next) => {
@@ -27,11 +50,12 @@ export const getWalletNonce = async (req, res, next) => {
     const nonce = generateNonce();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-    await WalletNonce.create({ address: checksumAddress, nonce, expiresAt });
+    const record = await WalletNonce.create({ address: checksumAddress, nonce, expiresAt });
 
     return res.json({
       success: true,
       nonce,
+      createdAt: record.createdAt,
       expiresAt,
     });
   } catch (error) {
@@ -68,7 +92,7 @@ export const bindWallet = async (req, res, next) => {
     }
 
     // Verify signature using ethers.js
-    const message = `Sign to verify wallet ownership. Nonce: ${nonce}. Time: ${walletNonce.createdAt.toISOString()}`;
+    const message = `Sign to verify wallet ownership. Nonce: ${nonce}`;
     let recoveredAddress;
     try {
       recoveredAddress = ethers.verifyMessage(message, signature);
@@ -101,6 +125,11 @@ export const bindWallet = async (req, res, next) => {
     if (!currentUser) throw new AppError('User not found.', 404);
 
     await currentUser.update({ walletAddress: checksumAddress });
+
+    // If user is already KYC approved, trigger on-chain registration now
+    if (currentUser.kycStatus === 'APPROVED') {
+      triggerOnChainKyc(userId, checksumAddress);
+    }
 
     authEventHandler.emit(AUTH_EVENTS.WALLET_BOUND, { userId, walletAddress: checksumAddress });
     await writeAuditLog({
