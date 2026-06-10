@@ -1,12 +1,15 @@
-import { KycApplicant } from '../models/index.js';
-import { AppError } from '../utils/AppError.js';
+import { ethers }          from 'ethers';
+import { KycApplicant }    from '../models/index.js';
+import { AppError }        from '../utils/AppError.js';
 import { createApplicant, generateSDKToken } from '../services/sumsub.service.js';
-import { sumsubConfig } from '../config/sumsub.js';
-import logger from '../utils/logger.js';
+import { sumsubConfig }    from '../config/sumsub.js';
+import logger              from '../utils/logger.js';
+import { getIdentityRegistry } from '../blockchain/contracts.js';
 
-const AUTH_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:3001';
+const AUTH_URL         = process.env.AUTH_SERVICE_URL         || 'http://localhost:3001';
 const NOTIFICATION_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:4002';
-const INTERNAL_KEY = process.env.INTERNAL_SERVICE_KEY || '';
+const INTERNAL_KEY     = process.env.INTERNAL_SERVICE_KEY     || '';
+const CONTRACTS_ENABLED = process.env.CONTRACTS_ENABLED === 'true';
 
 const callInternal = async (baseUrl, path, body) => {
   try {
@@ -24,6 +27,86 @@ const callInternal = async (baseUrl, path, body) => {
     }
   } catch (err) {
     logger.error(`[eKYC] Internal call error [${path}]:`, err.message);
+  }
+};
+
+const fetchInternalUser = async (userId) => {
+  try {
+    const res = await fetch(`${AUTH_URL}/internal/user/${userId}`, {
+      headers: { 'x-internal-service': INTERNAL_KEY },
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.walletAddress || null;
+  } catch (err) {
+    logger.error(`[eKYC] fetchInternalUser error: ${err.message}`);
+    return null;
+  }
+};
+
+// Register wallet on-chain: addIdentity + addClaim(topic 1) + addClaim(topic 3)
+const registerOnChain = async ({ walletAddress, applicantId, countryCode }) => {
+  if (!CONTRACTS_ENABLED) {
+    logger.info('[eKYC] CONTRACTS_ENABLED=false — skipping on-chain KYC registration (mock)');
+    return;
+  }
+
+  const registry     = getIdentityRegistry();
+  const identityHash = ethers.keccak256(ethers.toUtf8Bytes(applicantId));
+
+  // Check if already registered to allow idempotent retries
+  const alreadyRegistered = await registry.isRegistered(walletAddress);
+
+  if (!alreadyRegistered) {
+    const tx1 = await registry.addIdentity(walletAddress, identityHash);
+    await tx1.wait(1);
+    logger.info(`[eKYC] addIdentity tx=${tx1.hash} wallet=${walletAddress}`);
+  } else {
+    logger.warn(`[eKYC] wallet ${walletAddress} already registered — skipping addIdentity`);
+  }
+
+  // topic 1 — KYC_VERIFIED: data = applicantId as utf8 bytes, uri = empty
+  const kycData = ethers.toUtf8Bytes(applicantId);
+  const tx2     = await registry.addClaim(walletAddress, 1n, kycData, '');
+  await tx2.wait(1);
+  logger.info(`[eKYC] addClaim(topic=1) tx=${tx2.hash}`);
+
+  // topic 3 — JURISDICTION_ELIGIBLE: data = country code as bytes2
+  const country  = (countryCode || 'US').slice(0, 2).toUpperCase();
+  const jData    = ethers.toBeHex(ethers.toBigInt(ethers.toUtf8Bytes(country)), 2);
+  const tx3      = await registry.addClaim(walletAddress, 3n, jData, '');
+  await tx3.wait(1);
+  logger.info(`[eKYC] addClaim(topic=3) tx=${tx3.hash}`);
+};
+
+// POST /internal/kyc/register-onchain
+// Called by auth-service after wallet is bound, if user is already KYC APPROVED
+export const registerOnChainForWallet = async (req, res, next) => {
+  try {
+    const { userId, walletAddress } = req.body;
+    if (!userId || !walletAddress) {
+      return res.status(400).json({ success: false, message: 'userId and walletAddress are required' });
+    }
+
+    const record = await KycApplicant.findOne({ where: { userId } });
+    if (!record || record.status !== 'APPROVED') {
+      return res.json({ success: true, message: 'KYC not approved — skipping on-chain registration' });
+    }
+
+    try {
+      await registerOnChain({
+        walletAddress,
+        applicantId: record.applicantId,
+        countryCode: record.countryCode || 'US',
+      });
+      logger.info(`[eKYC] On-chain registration complete for wallet=${walletAddress} userId=${userId}`);
+      return res.json({ success: true, message: 'On-chain registration complete' });
+    } catch (err) {
+      logger.error(`[eKYC] On-chain registration failed for wallet=${walletAddress}: ${err.message}`);
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  } catch (error) {
+    next(error);
   }
 };
 
