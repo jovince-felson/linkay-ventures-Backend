@@ -2,6 +2,18 @@ import { User } from '../models/index.js';
 import { AppError } from '../utils/AppError.js';
 import logger from '../utils/logger.js';
 
+// GET /internal/user/:userId
+export const getInternalUser = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const user = await User.findByPk(userId, { attributes: ['id', 'walletAddress'] });
+    if (!user) throw new AppError('User not found.', 404);
+    return res.json({ success: true, walletAddress: user.walletAddress || null });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // POST /internal/kyc/status-update
 // Called by eKYC service after Sumsub webhook is processed.
 export const updateKycStatus = async (req, res, next) => {
