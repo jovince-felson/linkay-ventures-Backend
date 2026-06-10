@@ -227,12 +227,13 @@ export const login = async (req, res, next) => {
     await writeAuditLog({ userId: user.id, event: AuditEvents.LOGIN, req });
     authEventHandler.emit(AUTH_EVENTS.USER_LOGGED_IN, { userId: user.id });
 
-    // Set refresh token in httpOnly cookie
+    // Set refresh token in httpOnly cookie (kept for backwards compatibility)
     res.cookie("refreshToken", refreshToken, cookieOptions);
 
     return res.json({
       success: true,
       accessToken,
+      refreshToken,
       user: {
         id: user.id,
         email: user.email,
@@ -278,7 +279,8 @@ export const logout = async (req, res, next) => {
 // POST /auth/refresh
 export const refreshToken = async (req, res, next) => {
   try {
-    const token = req.cookies?.refreshToken;
+    // Prefer token from request body (tab-specific sessionStorage) over shared cookie
+    const token = req.body?.refreshToken || req.cookies?.refreshToken;
     if (!token)
       throw new AppError(
         "Session expired. Please log in again.",
