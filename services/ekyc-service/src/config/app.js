@@ -6,6 +6,7 @@ import kycRoutes from '../routes/kyc.routes.js';
 import { errorHandler } from '../middlewares/error.middleware.js';
 import { notFound } from '../middlewares/notFound.middleware.js';
 import logger from '../utils/logger.js';
+import { registerOnChainForWallet } from '../controllers/kyc.controller.js';
 
 const app = express();
 
@@ -32,6 +33,15 @@ app.get('/health', (_req, res) => {
 });
 
 app.use('/api/v1/ekyc', kycRoutes);
+
+// Internal route — called by auth-service after wallet binding
+app.post('/internal/kyc/register-onchain', (req, res, next) => {
+  const key = req.headers['x-internal-service'];
+  if (!key || key !== process.env.INTERNAL_SERVICE_KEY) {
+    return res.status(403).json({ success: false, message: 'Forbidden' });
+  }
+  next();
+}, registerOnChainForWallet);
 
 app.use(notFound);
 app.use(errorHandler);
