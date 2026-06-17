@@ -2,6 +2,7 @@ import axios            from 'axios';
 import Auction           from '../models/Auction.js';
 import Asset             from '../models/Asset.js';
 import AssetTokenization from '../models/AssetTokenization.js';
+import Bid               from '../models/Bid.js';
 import { sendSuccess, sendNotFound, sendError } from '../utils/response.js';
 
 const TOKENIZATION_SERVICE_URL = process.env.TOKENIZATION_SERVICE_URL || 'http://tokenization-service:4005';
@@ -104,7 +105,7 @@ export async function listAuctions(req, res) {
   const auctions = await Auction.findAll({
     where,
     include: [{ model: Asset, as: 'asset', attributes: ['id', 'title', 'assetType', 'valuation', 'mediaFiles'] }],
-    order: [['createdAt', 'DESC']],
+    order: [['created_at', 'DESC']],
   });
 
   return sendSuccess(res, auctions);
@@ -193,4 +194,58 @@ export async function deleteAuction(req, res) {
 
   await auction.destroy();
   return sendSuccess(res, null, 'Auction deleted successfully');
+}
+
+// ── POST /api/v1/auctions/:auctionId/bid ─────────────────────────────────────
+// Called by investor frontend AFTER on-chain placeBid tx is confirmed
+export async function placeBid(req, res) {
+  const { auctionId } = req.params;
+  const { bidderAddress, amount, txHash } = req.body;
+
+  if (!bidderAddress || !amount) {
+    return sendError(res, 'bidderAddress and amount are required', 400);
+  }
+
+  const auction = await Auction.findByPk(auctionId);
+  if (!auction) return sendNotFound(res, 'Auction not found');
+  if (auction.status !== 'LIVE') {
+    return sendError(res, 'Auction is not live', 422);
+  }
+
+  const bid = await Bid.create({ auctionId, bidderAddress, amount, txHash });
+  return sendSuccess(res, bid, 'Bid recorded', 201);
+}
+
+// ── GET /api/v1/auctions/:auctionId/bids ─────────────────────────────────────
+export async function listBids(req, res) {
+  const { auctionId } = req.params;
+
+  const auction = await Auction.findByPk(auctionId);
+  if (!auction) return sendNotFound(res, 'Auction not found');
+
+  const bids = await Bid.findAll({
+    where: { auctionId },
+    order: [['created_at', 'DESC']],
+  });
+
+  return sendSuccess(res, bids);
+}
+
+// ── GET /api/v1/auctions/public/:auctionId ───────────────────────────────────
+export async function getPublicAuction(req, res) {
+  const auction = await Auction.findOne({
+    where: { id: req.params.auctionId },
+    include: [
+      { model: Asset, as: 'asset', attributes: ['id', 'title', 'assetType', 'valuation', 'mediaFiles'] },
+    ],
+  });
+  if (!auction) return sendNotFound(res, 'Auction not found');
+
+  const bids = await Bid.findAll({
+    where: { auctionId: auction.id },
+    order: [['created_at', 'DESC']],
+    limit: 20,
+  });
+
+  return sendSuccess(res, { ...auction.toJSON(), bids });
 }

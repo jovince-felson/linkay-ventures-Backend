@@ -4,6 +4,7 @@ import AssetOwnership     from './AssetOwnership.js';
 import AssetTokenization  from './AssetTokenization.js';
 import AssetMedia         from './AssetMedia.js';
 import Auction            from './Auction.js';
+import Bid                from './Bid.js';
 
 // ── Associations ────────────────────────────────────────────────────────────────
 
@@ -19,4 +20,7 @@ AssetMedia.belongsTo(Asset, { foreignKey: 'assetId', as: 'asset' });
 Asset.hasMany(Auction, { foreignKey: 'assetId', as: 'auctions', onDelete: 'CASCADE' });
 Auction.belongsTo(Asset, { foreignKey: 'assetId', as: 'asset' });
 
-export { sequelize, Asset, AssetOwnership, AssetTokenization, AssetMedia, Auction };
+Auction.hasMany(Bid, { foreignKey: 'auctionId', as: 'bids', onDelete: 'CASCADE' });
+Bid.belongsTo(Auction, { foreignKey: 'auctionId', as: 'auction' });
+
+export { sequelize, Asset, AssetOwnership, AssetTokenization, AssetMedia, Auction, Bid };

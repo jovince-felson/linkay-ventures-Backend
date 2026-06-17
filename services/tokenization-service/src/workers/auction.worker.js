@@ -130,6 +130,10 @@ auctionQueue.process('settleAuction', async (job) => {
     return;
   }
 
+  let winnerAddress    = null;
+  let winningBid       = null;
+  let settlementStatus = null;
+
   if (!MOCK) {
     const onChainId = auction.onchain_auction_id;
     if (!onChainId) throw new Error(`Missing onchain_auction_id for auction ${auctionId}`);
@@ -138,16 +142,35 @@ auctionQueue.process('settleAuction', async (job) => {
     const tx      = await house.settleAuction(BigInt(onChainId));
     const receipt = await tx.wait(1, 120000);
     console.log(`✅ settleAuction(${onChainId}) tx=${receipt.hash}`);
+
+    for (const log of receipt.logs) {
+      let parsed;
+      try { parsed = house.interface.parseLog(log); } catch { continue; }
+
+      if (parsed?.name === 'AuctionSettled') {
+        winnerAddress    = parsed.args.winner;
+        winningBid       = (Number(parsed.args.winningBid) / 1e6).toFixed(6);
+        settlementStatus = 'SETTLED';
+        console.log(`🏆 AuctionSettled winner=${winnerAddress} bid=${winningBid} USDC`);
+      } else if (parsed?.name === 'ReserveNotMet') {
+        settlementStatus = 'RESERVE_NOT_MET';
+        console.log(`⚠️  ReserveNotMet — highest bid ${Number(parsed.args.highestBid) / 1e6} < reserve ${Number(parsed.args.reservePrice) / 1e6} USDC`);
+      }
+    }
   } else {
     console.log(`🔧 MOCK settleAuction`);
+    // In mock mode simulate a settled auction with a dummy winner
+    settlementStatus = 'SETTLED';
   }
 
   await sequelize.query(
-    'UPDATE auctions SET status = ?, updated_at = NOW() WHERE id = ?',
-    { replacements: ['ENDED', auctionId] },
+    `UPDATE auctions
+        SET status = ?, settlement_status = ?, winner_address = ?, winning_bid = ?, updated_at = NOW()
+      WHERE id = ?`,
+    { replacements: ['ENDED', settlementStatus, winnerAddress, winningBid, auctionId] },
   );
 
-  console.log(`✅ Auction ${auctionId} → ENDED`);
+  console.log(`✅ Auction ${auctionId} → ENDED (settlement=${settlementStatus})`);
 });
 
 auctionQueue.on('failed', (job, err) => {

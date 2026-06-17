@@ -10,6 +10,9 @@ import {
   updateAuction,
   patchAuctionStatus,
   deleteAuction,
+  placeBid,
+  listBids,
+  getPublicAuction,
 } from '../../controllers/auction.controller.js';
 import {
   createAuctionSchema,
@@ -62,6 +65,24 @@ router.delete('/:auctionId',
   authenticate,
   requireMuseumAdmin,
   asyncWrapper(deleteAuction),
+);
+
+// POST /api/v1/auctions/:auctionId/bid  — investor records bid after on-chain tx
+router.post('/:auctionId/bid',
+  authenticate,
+  asyncWrapper(placeBid),
+);
+
+// GET /api/v1/auctions/:auctionId/bids  — bid history
+router.get('/:auctionId/bids',
+  authenticate,
+  asyncWrapper(listBids),
+);
+
+// GET /api/v1/auctions/public/:auctionId  — public auction detail + bids (no museum restriction)
+router.get('/public/:auctionId',
+  authenticate,
+  asyncWrapper(getPublicAuction),
 );
 
 export default router;
