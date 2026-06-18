@@ -35,7 +35,8 @@ export const createAssetSchema = Joi.object({
   custodian:         Joi.string().max(300).allow('', null).optional(),
   ownershipEntity:   Joi.string().max(300).allow('', null).optional(),
   valuation:         Joi.number().positive().allow(null).optional(),
-  jurisdiction:      Joi.string().max(200).allow('', null).optional(),
+  jurisdiction:      Joi.string().length(2).uppercase().pattern(/^[A-Z]{2}$/).allow('', null).optional()
+                       .messages({ 'string.pattern.base': 'jurisdiction must be an ISO 3166-1 alpha-2 code (e.g. "US", "GB")' }),
   threeDFiles:       Joi.string().max(2000).allow('', null).optional(),
   threeDModelUrl:    Joi.string().max(500).allow('', null).optional(),
   liveStream:        Joi.string().max(2000).allow('', null).optional(),
@@ -63,7 +64,8 @@ export const updateAssetSchema = Joi.object({
   custodian:         Joi.string().max(300).allow('', null).optional(),
   ownershipEntity:   Joi.string().max(300).allow('', null).optional(),
   valuation:         Joi.number().positive().allow(null).optional(),
-  jurisdiction:      Joi.string().max(200).allow('', null).optional(),
+  jurisdiction:      Joi.string().length(2).uppercase().pattern(/^[A-Z]{2}$/).allow('', null).optional()
+                       .messages({ 'string.pattern.base': 'jurisdiction must be an ISO 3166-1 alpha-2 code (e.g. "US", "GB")' }),
   threeDFiles:       Joi.string().max(2000).allow('', null).optional(),
   threeDModelUrl:    Joi.string().max(500).allow('', null).optional(),
   liveStream:        Joi.string().max(2000).allow('', null).optional(),

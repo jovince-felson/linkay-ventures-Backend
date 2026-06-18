@@ -1,6 +1,7 @@
 import sequelize                               from '../config/database.js';
 import { auctionQueue }                        from '../config/queue.js';
 import { getFractionalToken, getAuctionHouse } from '../blockchain/contracts.js';
+import { setComplianceStep }                   from '../steps/setCompliance.step.js';
 
 const MOCK = process.env.CONTRACTS_ENABLED !== 'true';
 
@@ -138,9 +139,34 @@ auctionQueue.process('settleAuction', async (job) => {
     const onChainId = auction.onchain_auction_id;
     if (!onChainId) throw new Error(`Missing onchain_auction_id for auction ${auctionId}`);
 
-    const house   = getAuctionHouse();
-    const tx      = await house.settleAuction(BigInt(onChainId));
-    const receipt = await tx.wait(1, 120000);
+    const house = getAuctionHouse();
+    let receipt;
+    try {
+      const tx = await house.settleAuction(BigInt(onChainId));
+      receipt  = await tx.wait(1, 120000);
+    } catch (err) {
+      const reason = err?.revert?.args?.[0] ?? err?.reason ?? err?.message ?? '';
+
+      if (reason.includes('CM: recipient jurisdiction not allowed')) {
+        // Compliance was set without AuctionHouse jurisdiction — auto-fix and retry
+        console.warn(`⚠️  Compliance error detected — refreshing compliance for asset and retrying...`);
+        const [[auctionAsset]] = await sequelize.query(
+          'SELECT asset_id FROM auctions WHERE id = ?',
+          { replacements: [auctionId] },
+        );
+        if (!auctionAsset?.asset_id) throw err;
+        await sequelize.query(
+          'UPDATE assets SET compliance_configured = 0 WHERE id = ?',
+          { replacements: [auctionAsset.asset_id] },
+        );
+        await setComplianceStep({ assetId: auctionAsset.asset_id });
+        console.log(`✅ Compliance fixed — retrying settleAuction(${onChainId})`);
+        const tx2 = await house.settleAuction(BigInt(onChainId));
+        receipt   = await tx2.wait(1, 120000);
+      } else {
+        throw err; // unknown error — surface it clearly
+      }
+    }
     console.log(`✅ settleAuction(${onChainId}) tx=${receipt.hash}`);
 
     for (const log of receipt.logs) {
