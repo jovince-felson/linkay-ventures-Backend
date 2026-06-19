@@ -183,6 +183,12 @@ auctionQueue.process('settleAuction', async (job) => {
         console.log(`⚠️  ReserveNotMet — highest bid ${Number(parsed.args.highestBid) / 1e6} < reserve ${Number(parsed.args.reservePrice) / 1e6} USDC`);
       }
     }
+
+    // No event = zero bids placed; contract silently returns without emitting
+    if (settlementStatus === null) {
+      settlementStatus = 'NO_BIDS';
+      console.log(`ℹ️  No bids — auction ${auctionId} ended with no participants`);
+    }
   } else {
     console.log(`🔧 MOCK settleAuction`);
     // In mock mode simulate a settled auction with a dummy winner

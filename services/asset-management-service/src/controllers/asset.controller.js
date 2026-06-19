@@ -81,7 +81,7 @@ export async function listAssets(req, res) {
         model:    Auction,
         as:       'auctions',
         required: false,
-        attributes: ['id', 'status', 'startDate', 'startTime', 'endDate', 'endTime', 'timezone', 'onChainAuctionId', 'showCountdown', 'reservePrice', 'startingBidPrice', 'createdAt'],
+        attributes: ['id', 'status', 'startDate', 'startTime', 'endDate', 'endTime', 'timezone', 'onChainAuctionId', 'showCountdown', 'reservePrice', 'startingBidPrice', 'createdAt', 'settlementStatus'],
         order:    [['createdAt', 'DESC']],
         limit:    1,
       },
