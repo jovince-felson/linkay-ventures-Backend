@@ -245,6 +245,7 @@ export const login = async (req, res, next) => {
         museum_id: user.museum_id,
         firstName: user.firstName,
         lastName: user.lastName,
+        createdAt: user.createdAt,
       },
     });
   } catch (error) {
@@ -377,6 +378,7 @@ export const getMe = async (req, res, next) => {
         "status",
         "firstName",
         "lastName",
+        "createdAt",
       ],
     });
     if (!user) throw new AppError("User not found.", 404);

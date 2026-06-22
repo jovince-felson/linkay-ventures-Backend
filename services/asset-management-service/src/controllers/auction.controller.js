@@ -231,6 +231,24 @@ export async function listBids(req, res) {
   return sendSuccess(res, bids);
 }
 
+// ── GET /api/v1/auctions/won ─────────────────────────────────────────────────
+export async function getWonAuctions(req, res) {
+  const walletAddress = req.user.walletAddress;
+  if (!walletAddress) return sendError(res, 'No wallet address linked to this account', 400);
+
+  const auctions = await Auction.findAll({
+    where: { winnerAddress: walletAddress },
+    include: [{
+      model: Asset,
+      as: 'asset',
+      attributes: ['id', 'title', 'assetType', 'mediaFiles', 'valuation'],
+    }],
+    order: [['created_at', 'DESC']],
+  });
+
+  return sendSuccess(res, auctions);
+}
+
 // ── GET /api/v1/auctions/public/:auctionId ───────────────────────────────────
 export async function getPublicAuction(req, res) {
   const auction = await Auction.findOne({

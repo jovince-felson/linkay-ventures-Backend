@@ -13,6 +13,7 @@ import {
   placeBid,
   listBids,
   getPublicAuction,
+  getWonAuctions,
 } from '../../controllers/auction.controller.js';
 import {
   createAuctionSchema,
@@ -35,6 +36,12 @@ router.get('/',
   authenticate,
   requireMuseumAdmin,
   asyncWrapper(listAuctions),
+);
+
+// GET    /api/v1/auctions/won — investor's won auctions with asset data
+router.get('/won',
+  authenticate,
+  asyncWrapper(getWonAuctions),
 );
 
 // GET    /api/v1/auctions/:auctionId
