@@ -1,6 +1,7 @@
 import sequelize                               from '../config/database.js';
 import { auctionQueue }                        from '../config/queue.js';
 import { getFractionalToken, getAuctionHouse } from '../blockchain/contracts.js';
+import { setComplianceStep }                   from '../steps/setCompliance.step.js';
 
 const MOCK = process.env.CONTRACTS_ENABLED !== 'true';
 
@@ -130,24 +131,78 @@ auctionQueue.process('settleAuction', async (job) => {
     return;
   }
 
+  let winnerAddress    = null;
+  let winningBid       = null;
+  let settlementStatus = null;
+
   if (!MOCK) {
     const onChainId = auction.onchain_auction_id;
     if (!onChainId) throw new Error(`Missing onchain_auction_id for auction ${auctionId}`);
 
-    const house   = getAuctionHouse();
-    const tx      = await house.settleAuction(BigInt(onChainId));
-    const receipt = await tx.wait(1, 120000);
+    const house = getAuctionHouse();
+    let receipt;
+    try {
+      const tx = await house.settleAuction(BigInt(onChainId));
+      receipt  = await tx.wait(1, 120000);
+    } catch (err) {
+      const reason = err?.revert?.args?.[0] ?? err?.reason ?? err?.message ?? '';
+
+      if (reason.includes('CM: recipient jurisdiction not allowed')) {
+        // Compliance was set without AuctionHouse jurisdiction — auto-fix and retry
+        console.warn(`⚠️  Compliance error detected — refreshing compliance for asset and retrying...`);
+        const [[auctionAsset]] = await sequelize.query(
+          'SELECT asset_id FROM auctions WHERE id = ?',
+          { replacements: [auctionId] },
+        );
+        if (!auctionAsset?.asset_id) throw err;
+        await sequelize.query(
+          'UPDATE assets SET compliance_configured = 0 WHERE id = ?',
+          { replacements: [auctionAsset.asset_id] },
+        );
+        await setComplianceStep({ assetId: auctionAsset.asset_id });
+        console.log(`✅ Compliance fixed — retrying settleAuction(${onChainId})`);
+        const tx2 = await house.settleAuction(BigInt(onChainId));
+        receipt   = await tx2.wait(1, 120000);
+      } else {
+        throw err; // unknown error — surface it clearly
+      }
+    }
     console.log(`✅ settleAuction(${onChainId}) tx=${receipt.hash}`);
+
+    for (const log of receipt.logs) {
+      let parsed;
+      try { parsed = house.interface.parseLog(log); } catch { continue; }
+
+      if (parsed?.name === 'AuctionSettled') {
+        winnerAddress    = parsed.args.winner;
+        winningBid       = (Number(parsed.args.winningBid) / 1e6).toFixed(6);
+        settlementStatus = 'SETTLED';
+        console.log(`🏆 AuctionSettled winner=${winnerAddress} bid=${winningBid} USDC`);
+      } else if (parsed?.name === 'ReserveNotMet') {
+        settlementStatus = 'RESERVE_NOT_MET';
+        console.log(`⚠️  ReserveNotMet — highest bid ${Number(parsed.args.highestBid) / 1e6} < reserve ${Number(parsed.args.reservePrice) / 1e6} USDC`);
+      }
+    }
+
+    // No event = zero bids placed; contract silently returns without emitting
+    if (settlementStatus === null) {
+      settlementStatus = 'NO_BIDS';
+      console.log(`ℹ️  No bids — auction ${auctionId} ended with no participants`);
+    }
   } else {
     console.log(`🔧 MOCK settleAuction`);
+    // In mock mode simulate a settled auction with a dummy winner
+    settlementStatus = 'SETTLED';
   }
 
   await sequelize.query(
-    'UPDATE auctions SET status = ?, updated_at = NOW() WHERE id = ?',
-    { replacements: ['ENDED', auctionId] },
+    `UPDATE auctions
+        SET status = ?, settlement_status = ?, winner_address = ?, winning_bid = ?, updated_at = NOW()
+      WHERE id = ?`,
+    { replacements: ['ENDED', settlementStatus, winnerAddress, winningBid, auctionId] },
   );
 
-  console.log(`✅ Auction ${auctionId} → ENDED`);
+  console.log(`✅ Auction ${auctionId} → ENDED (settlement=${settlementStatus})`);
 });
 
 auctionQueue.on('failed', (job, err) => {

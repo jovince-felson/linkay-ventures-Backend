@@ -1,4 +1,4 @@
-import { scheduleAuctionJobs, cancelAuctionJobs } from '../config/queue.js';
+import { scheduleAuctionJobs, cancelAuctionJobs, auctionQueue } from '../config/queue.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 
 // POST /api/v1/auction/schedule
@@ -27,4 +27,18 @@ export async function cancelScheduledAuction(req, res) {
   const { auctionId } = req.params;
   await cancelAuctionJobs(auctionId);
   return sendSuccess(res, { auctionId }, 'Auction jobs cancelled');
+}
+
+// POST /api/v1/auction/settle/:auctionId  — manual re-trigger
+export async function retriggerSettle(req, res) {
+  const { auctionId } = req.params;
+  const jobId = `settle-${auctionId}`;
+  const existing = await auctionQueue.getJob(jobId);
+  if (existing) await existing.remove();
+  await auctionQueue.add('settleAuction', { auctionId }, {
+    jobId,
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 5000 },
+  });
+  return sendSuccess(res, { auctionId }, 'Settle job re-queued');
 }

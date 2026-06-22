@@ -117,6 +117,21 @@ Auction.init(
       allowNull: true,
       field:     'onchain_auction_id',
     },
+    winnerAddress: {
+      type:      DataTypes.STRING(42),
+      allowNull: true,
+      field:     'winner_address',
+    },
+    winningBid: {
+      type:      DataTypes.DECIMAL(20, 6),
+      allowNull: true,
+      field:     'winning_bid',
+    },
+    settlementStatus: {
+      type:      DataTypes.ENUM('SETTLED', 'RESERVE_NOT_MET'),
+      allowNull: true,
+      field:     'settlement_status',
+    },
   },
   {
     sequelize,

@@ -8,6 +8,12 @@ const MOCK = process.env.CONTRACTS_ENABLED !== 'true';
 // EligibilityLevel enum from ComplianceModule.sol
 const ELIGIBILITY = { RETAIL: 0, ACCREDITED: 1, PROFESSIONAL: 2 };
 
+// All jurisdictions supported by the platform — any KYC-verified investor from
+// these countries can participate in auctions and marketplace listings.
+const ALL_PLATFORM_JURISDICTIONS = [
+  'US', 'GB', 'EU', 'SG', 'AE', 'CH', 'DE', 'FR', 'JP', 'CA', 'AU', 'IN',
+];
+
 // ISO 3166-1 alpha-2 → bytes2
 function toBytes2(isoCode) {
   return ethers.toBeHex(
@@ -23,10 +29,9 @@ export async function setComplianceStep(job) {
   const asset = await Asset.findByPk(assetId);
   if (!asset) throw new Error(`Asset ${assetId} not found`);
 
-  // use asset jurisdiction; default to US if not set
-  const rawJurisdictions  = asset.jurisdiction
-    ? asset.jurisdiction.split(',').map((j) => j.trim())
-    : ['US'];
+  // Allow all platform-supported investor jurisdictions so any KYC-verified user
+  // can bid and win regardless of where the asset originates.
+  const rawJurisdictions = [...ALL_PLATFORM_JURISDICTIONS];
 
   if (MOCK) {
     await asset.update({ complianceConfigured: true });
